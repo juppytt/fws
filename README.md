@@ -92,9 +92,10 @@ npm test
 
 46 tests (Gmail 17, Calendar 15, Drive 12, Snapshot 2). Each test validates responses through the actual gws CLI.
 
-## API support
+## Documentation
 
-See [docs/gws-support.md](docs/gws-support.md) for the full endpoint-by-endpoint support table. Currently 35/173 endpoints across Gmail, Calendar, and Drive.
+- [docs/cli-reference.md](docs/cli-reference.md) — Full CLI reference with all flags, HTTP API equivalents, and examples
+- [docs/gws-support.md](docs/gws-support.md) — Endpoint-by-endpoint support table (35/173 across Gmail, Calendar, Drive)
 
 ## Structure
 
