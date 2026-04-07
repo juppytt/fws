@@ -4,7 +4,7 @@
   "description": "Fake Google Workspace — local mock server for gws CLI testing",
   "type": "module",
   "bin": {
-    "fws": "./dist/bin/fws.js"
+    "fws": "./bin/fws-cli.sh"
   },
   "scripts": {
     "start": "tsx bin/fws.ts server start",

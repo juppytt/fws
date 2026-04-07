@@ -6,64 +6,74 @@ A local mock server that redirects the `gws` CLI, enabling Gmail/Calendar/Drive 
 
 gws sends API requests to the `rootUrl` defined in its discovery cache (`~/.config/gws/cache/*.json`). fws rewrites these URLs to `http://localhost:4100/` and sets `GOOGLE_WORKSPACE_CLI_TOKEN=fake` to bypass auth.
 
+All data lives **in memory** — when the server stops, everything is lost unless you save a snapshot first. Use `fws snapshot save` to persist state.
+
 ## Install
 
 ```bash
 npm install
+npm link     # makes `fws` command available globally
 ```
 
 ## Quick Start
 
 ```bash
-# Start the server
-npm start
+# Start the server (runs in foreground)
+fws server start
 
 # In another terminal, paste the export lines printed by the server, then:
 gws gmail users messages list --params '{"userId":"me"}'
 gws calendar events list --params '{"calendarId":"primary"}'
 gws drive files list
+
+# Stop the server
+fws server stop
 ```
 
 The server starts with sample seed data (5 emails, 4 calendar events, 5 drive files) so you can try gws commands immediately.
 
-To stop the server, run `npx tsx bin/fws.ts server stop` or press Ctrl+C in the server terminal.
-
 ## Usage
 
-### Proxy mode (one-shot commands)
+### Proxy mode (one-shot)
 
 Starts a temporary server, runs gws, exits. No separate server needed.
 
 ```bash
-npx tsx bin/fws.ts gmail users messages list --params '{"userId":"me"}'
-npx tsx bin/fws.ts calendar calendarList list
-npx tsx bin/fws.ts drive about get --params '{"fields":"*"}'
+fws gmail users messages list --params '{"userId":"me"}'
+fws calendar calendarList list
+fws drive about get --params '{"fields":"*"}'
 ```
 
 ### Server mode (persistent)
 
 ```bash
-# Start server
-npx tsx bin/fws.ts server start
+fws server start                  # Start (foreground)
+fws server status                 # Check if running
+fws server stop                   # Stop
+```
 
-# Seed additional data
-npx tsx bin/fws.ts setup gmail add-message --from alice@corp.com --subject "Meeting agenda" --body "Meeting at 3pm tomorrow"
-npx tsx bin/fws.ts setup calendar add-event --summary "Team meeting" --start 2026-04-08T15:00:00 --duration 1h
-npx tsx bin/fws.ts setup drive add-file --name "report.pdf" --mimeType application/pdf
+### Setup (add data to running server)
 
-# Stop server
-npx tsx bin/fws.ts server stop
+```bash
+fws setup gmail add-message --from alice@corp.com --subject "Meeting" --body "See you at 3pm"
+fws setup calendar add-event --summary "Team sync" --start 2026-04-08T15:00:00 --duration 1h
+fws setup drive add-file --name "report.pdf" --mimeType application/pdf
 ```
 
 ### Snapshots
 
+Data is in-memory only. Save before stopping the server if you need to keep it.
+
 ```bash
-npx tsx bin/fws.ts snapshot save my-scenario    # Save current state
-npx tsx bin/fws.ts snapshot list                # List snapshots
-npx tsx bin/fws.ts reset                        # Reset to seed data
-npx tsx bin/fws.ts snapshot load my-scenario    # Restore saved state
-npx tsx bin/fws.ts snapshot delete my-scenario  # Delete snapshot
+fws snapshot save my-scenario     # Save current state to disk
+fws snapshot load my-scenario     # Restore saved state into running server
+fws snapshot list                 # List saved snapshots
+fws snapshot delete my-scenario   # Delete a snapshot
+fws reset                        # Reset to default seed data
+fws reset --snapshot my-scenario  # Reset to a specific snapshot
 ```
+
+Snapshots are stored in `~/.local/share/fws/snapshots/` (override with `FWS_DATA_DIR`).
 
 ## Default seed data
 
@@ -81,13 +91,9 @@ npm test
 
 46 tests (Gmail 17, Calendar 15, Drive 12, Snapshot 2). Each test validates responses through the actual gws CLI.
 
-## Supported APIs
+## API support
 
-| Service  | Endpoints |
-|----------|-----------|
-| Gmail    | messages (list/get/send/delete/trash/modify), labels (CRUD), threads (list/get), profile |
-| Calendar | calendarList, calendars (CRUD), events (CRUD, timeMin/timeMax filter, q search) |
-| Drive    | about, files (list/get/create/patch/delete/copy, q filter) |
+See [docs/gws-support.md](docs/gws-support.md) for the full endpoint-by-endpoint support table. Currently 35/173 endpoints across Gmail, Calendar, and Drive.
 
 ## Structure
 
@@ -97,4 +103,5 @@ src/server/routes/      Gmail, Calendar, Drive, and control API routes
 src/store/              In-memory data store + seed data
 src/config/             Discovery cache URL rewriting
 test/                   Vitest tests (with gws CLI validation)
+docs/                   API support documentation
 ```
