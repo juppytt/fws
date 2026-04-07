@@ -13,6 +13,9 @@ const DISCOVERY_SOURCES: Array<{ file: string; api: string; version: string }> =
 
 const DISCOVERY_URL = 'https://www.googleapis.com/discovery/v1/apis';
 
+// Persistent local cache so we only download once
+const localCacheDir = path.join(os.homedir(), '.local', 'share', 'fws', 'discovery-cache');
+
 async function readOrDownload(file: string, api: string, version: string): Promise<string> {
   // 1. Try local gws cache
   const gwsCachePath = path.join(
@@ -24,14 +27,25 @@ async function readOrDownload(file: string, api: string, version: string): Promi
     return await fs.readFile(gwsCachePath, 'utf-8');
   } catch {}
 
-  // 2. Download from Google's public discovery API
+  // 2. Try fws local cache
+  const fwsCachePath = path.join(localCacheDir, file);
+  try {
+    return await fs.readFile(fwsCachePath, 'utf-8');
+  } catch {}
+
+  // 3. Download from Google's public discovery API and save to fws cache
   const url = `${DISCOVERY_URL}/${api}/${version}/rest`;
   console.log(`Downloading discovery doc: ${api} ${version}...`);
   const res = await fetch(url);
   if (!res.ok) {
     throw new Error(`Failed to download ${url}: ${res.status} ${res.statusText}`);
   }
-  return await res.text();
+  const text = await res.text();
+
+  await fs.mkdir(localCacheDir, { recursive: true });
+  await fs.writeFile(fwsCachePath, text);
+
+  return text;
 }
 
 export async function generateConfigDir(port: number, targetDir: string): Promise<string> {
