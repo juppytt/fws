@@ -79,13 +79,24 @@ serverCmd
       return;
     }
 
+    // Kill existing server if any
+    try {
+      const info = JSON.parse(await fs.readFile(getServerInfoPath(), 'utf-8'));
+      try {
+        process.kill(info.pid, 'SIGTERM');
+        await new Promise(r => setTimeout(r, 300));
+      } catch {}
+      await fs.unlink(getServerInfoPath()).catch(() => {});
+    } catch {}
+
     // Spawn the server as a detached background process
     const configDir = path.join(getDataDir(), 'config');
     await ensureDir(getDataDir());
     await generateConfigDir(port, configDir);
 
     const logFile = path.join(getDataDir(), 'server.log');
-    const logFd = await fs.open(logFile, 'a');
+    // Truncate log on each start so it's fresh
+    const logFd = await fs.open(logFile, 'w');
 
     const args = ['server', 'start', '--foreground', '-p', String(port)];
     if (opts.snapshot) args.push('-s', opts.snapshot);
@@ -99,30 +110,38 @@ serverCmd
     });
     child.unref();
 
-    // Wait briefly for server to start, then verify
-    await new Promise(r => setTimeout(r, 500));
-
-    try {
-      const res = await fetch(`http://localhost:${port}/__fws/status`);
-      if (res.ok) {
-        console.log(`fws server started on port ${port} (pid ${child.pid})`);
-        console.log(`Log: ${logFile}\n`);
-        console.log(`To use with gws:\n`);
-        console.log(`  export GOOGLE_WORKSPACE_CLI_CONFIG_DIR=${configDir}`);
-        console.log(`  export GOOGLE_WORKSPACE_CLI_TOKEN=fake\n`);
-        console.log(`Then try:\n`);
-        console.log(`  gws gmail users messages list --params '{"userId":"me"}'`);
-        console.log(`  gws calendar events list --params '{"calendarId":"primary"}'`);
-        console.log(`  gws drive files list\n`);
-        console.log(`Stop with: fws server stop`);
-      } else {
-        console.error('Server started but health check failed');
-      }
-    } catch {
-      console.error('Failed to start server. Check log:', logFile);
+    // Retry health check a few times (server needs time to start)
+    let started = false;
+    for (let i = 0; i < 10; i++) {
+      await new Promise(r => setTimeout(r, 300));
+      try {
+        const res = await fetch(`http://localhost:${port}/__fws/status`);
+        if (res.ok) {
+          started = true;
+          break;
+        }
+      } catch {}
     }
 
     await logFd.close();
+
+    if (started) {
+      console.log(`fws server started on port ${port} (pid ${child.pid})\n`);
+      console.log(`To use with gws:\n`);
+      console.log(`  export GOOGLE_WORKSPACE_CLI_CONFIG_DIR=${configDir}`);
+      console.log(`  export GOOGLE_WORKSPACE_CLI_TOKEN=fake\n`);
+      console.log(`Then try:\n`);
+      console.log(`  gws gmail users messages list --params '{"userId":"me"}'`);
+      console.log(`  gws calendar events list --params '{"calendarId":"primary"}'`);
+      console.log(`  gws drive files list\n`);
+      console.log(`Stop with: fws server stop`);
+    } else {
+      const log = await fs.readFile(logFile, 'utf-8').catch(() => '');
+      console.error('Failed to start server.');
+      if (log.trim()) {
+        console.error('\nServer log:\n' + log);
+      }
+    }
   });
 
 serverCmd
