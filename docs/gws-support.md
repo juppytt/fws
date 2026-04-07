@@ -1,8 +1,8 @@
 # gws API Support Status
 
-fws currently mocks **56 REST endpoints + 5 helpers** across 3 of 17 gws services.
+fws currently mocks **104 REST endpoints + 5 helpers** across 6 of 17 gws services.
 
-All supported endpoints are validated through actual `gws` CLI commands in `test/gws-validation.test.ts` (71 tests).
+All supported endpoints are validated through actual `gws` CLI commands in `test/gws-validation.test.ts` (89 tests).
 
 ## Summary
 
@@ -11,9 +11,9 @@ All supported endpoints are validated through actual `gws` CLI commands in `test
 | Gmail | Partial | 28 + 5 helpers | 79 | Messages (incl. batch/import), labels, threads (CRUD), profile, drafts, history, settings, +triage/+send/+reply/+forward |
 | Calendar | Partial | 21 | 37 | Calendars (CRUD+clear), calendarList (CRUD), events (CRUD+import/move/quickAdd) |
 | Drive | Partial | 18 | 57 | Files (CRUD+copy+emptyTrash), permissions (CRUD), drives (list/create), about |
-| Sheets | Not yet | 0 | 17 | |
-| Tasks | Not yet | 0 | 14 | |
-| People | Not yet | 0 | 24 | |
+| Tasks | Full | 14 | 14 | Task lists CRUD, tasks CRUD/move/clear |
+| Sheets | Partial | 7 | 17 | Spreadsheets create/get/batchUpdate, values get/update/append/clear |
+| People | Partial | 16 | 24 | Contacts CRUD/search/batch, contact groups CRUD, connections |
 | Events | Not yet | 0 | 15 | |
 | Docs | Not yet | — | — | |
 | Slides | Not yet | — | — | |
@@ -223,17 +223,49 @@ Comments (5), replies (5), revisions (4), changes (3), channels, apps, teamdrive
 
 ---
 
-## Sheets (0/17) — not yet supported
+## Tasks (14/14) — fully supported
 
-Spreadsheets CRUD, values read/write/append/clear, batch operations, developer metadata, sheet copying.
+All endpoints gws-tested: tasklists (list/get/insert/patch/update/delete), tasks (list/get/insert/patch/update/delete/move/clear).
 
-## Tasks (0/14) — not yet supported
+## Sheets (7/17)
 
-Task lists CRUD, tasks CRUD/move/clear.
+| gws command | API method | Status |
+|-------------|-----------|--------|
+| `sheets spreadsheets create` | sheets.spreadsheets.create | ✅ gws-tested |
+| `sheets spreadsheets get` | sheets.spreadsheets.get | ✅ gws-tested |
+| `sheets spreadsheets batchUpdate` | sheets.spreadsheets.batchUpdate | ✅ gws-tested |
+| `sheets spreadsheets values get` | sheets.spreadsheets.values.get | ✅ gws-tested |
+| `sheets spreadsheets values update` | sheets.spreadsheets.values.update | ✅ gws-tested |
+| `sheets spreadsheets values append` | sheets.spreadsheets.values.append | ✅ gws-tested |
+| `sheets spreadsheets values clear` | sheets.spreadsheets.values.clear | ✅ gws-tested |
+| `sheets spreadsheets values batchGet` | sheets.spreadsheets.values.batchGet | ✅ gws-tested |
+| Other batch/filter operations | | — (9 endpoints) |
 
-## People (0/24) — not yet supported
+## People (16/24)
 
-Contacts CRUD, contact groups, directory people, other contacts.
+| gws command | API method | Status |
+|-------------|-----------|--------|
+| `people people get` | people.people.get | ✅ gws-tested |
+| `people people createContact` | people.people.createContact | ✅ gws-tested |
+| `people people updateContact` | people.people.updateContact | ✅ gws-tested |
+| `people people deleteContact` | people.people.deleteContact | ✅ gws-tested |
+| `people people searchContacts` | people.people.searchContacts | ✅ gws-tested |
+| `people people getBatchGet` | people.people.getBatchGet | ✅ gws-tested |
+| `people people batchCreateContacts` | people.people.batchCreateContacts | ✅ gws-tested |
+| `people people batchUpdateContacts` | people.people.batchUpdateContacts | ✅ gws-tested |
+| `people people batchDeleteContacts` | people.people.batchDeleteContacts | ✅ gws-tested |
+| `people people connections list` | people.people.connections.list | ✅ gws-tested |
+| `people people listDirectoryPeople` | people.people.listDirectoryPeople | ✅ gws-tested |
+| `people people searchDirectoryPeople` | people.people.searchDirectoryPeople | ✅ gws-tested |
+| `people contactGroups list` | people.contactGroups.list | ✅ gws-tested |
+| `people contactGroups get` | people.contactGroups.get | ✅ gws-tested |
+| `people contactGroups create` | people.contactGroups.create | ✅ gws-tested |
+| `people contactGroups delete` | people.contactGroups.delete | ✅ gws-tested |
+| `people contactGroups update` | people.contactGroups.update | — |
+| `people contactGroups batchGet` | people.contactGroups.batchGet | — |
+| `people contactGroups members modify` | people.contactGroups.members.modify | ✅ gws-tested |
+| `people otherContacts list` | people.otherContacts.list | ✅ gws-tested |
+| Other (photo, copy) | | — |
 
 ## Events (0/15) — not yet supported
 

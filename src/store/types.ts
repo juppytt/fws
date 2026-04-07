@@ -4,6 +4,9 @@ export interface FwsStore {
   gmail: GmailStore;
   calendar: CalendarStore;
   drive: DriveStore;
+  tasks: TasksStore;
+  sheets: SheetsStore;
+  people: PeopleStore;
 }
 
 // === Gmail ===
@@ -125,4 +128,98 @@ export interface DriveFile {
   owners?: Array<{ emailAddress: string; displayName: string }>;
   webViewLink?: string;
   description?: string;
+}
+
+// === Tasks ===
+
+export interface TasksStore {
+  taskLists: Record<string, TaskList>;
+  tasks: Record<string, Record<string, Task>>; // taskListId -> taskId -> task
+}
+
+export interface TaskList {
+  kind: 'tasks#taskList';
+  id: string;
+  title: string;
+  updated: string;
+  selfLink: string;
+}
+
+export interface Task {
+  kind: 'tasks#task';
+  id: string;
+  title: string;
+  updated: string;
+  selfLink: string;
+  status: 'needsAction' | 'completed';
+  due?: string;
+  notes?: string;
+  completed?: string;
+  parent?: string;
+  position: string;
+  links?: Array<{ type: string; description: string; link: string }>;
+}
+
+// === Sheets ===
+
+export interface SheetsStore {
+  spreadsheets: Record<string, Spreadsheet>;
+}
+
+export interface Spreadsheet {
+  spreadsheetId: string;
+  properties: {
+    title: string;
+    locale?: string;
+    autoRecalc?: string;
+    timeZone?: string;
+  };
+  sheets: Sheet[];
+  spreadsheetUrl: string;
+}
+
+export interface Sheet {
+  properties: {
+    sheetId: number;
+    title: string;
+    index: number;
+    sheetType: string;
+    gridProperties: { rowCount: number; columnCount: number };
+  };
+  data?: Array<{
+    startRow?: number;
+    startColumn?: number;
+    rowData?: Array<{ values?: Array<{ formattedValue?: string; userEnteredValue?: any }> }>;
+  }>;
+}
+
+// Cell values stored separately for easy access
+export interface SheetValues {
+  // key: "spreadsheetId:sheetTitle" -> 2D array of cell values
+  [key: string]: string[][];
+}
+
+// === People ===
+
+export interface PeopleStore {
+  contacts: Record<string, Person>;
+  contactGroups: Record<string, ContactGroup>;
+}
+
+export interface Person {
+  resourceName: string;
+  etag: string;
+  names?: Array<{ displayName: string; familyName?: string; givenName?: string }>;
+  emailAddresses?: Array<{ value: string; type?: string }>;
+  phoneNumbers?: Array<{ value: string; type?: string }>;
+  organizations?: Array<{ name?: string; title?: string }>;
+}
+
+export interface ContactGroup {
+  resourceName: string;
+  etag: string;
+  name: string;
+  groupType: 'USER_CONTACT_GROUP' | 'SYSTEM_CONTACT_GROUP';
+  memberCount: number;
+  memberResourceNames?: string[];
 }

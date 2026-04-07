@@ -1,4 +1,4 @@
-import type { FwsStore, GmailLabel, GmailMessage, CalendarEvent, DriveFile } from './types.js';
+import type { FwsStore, GmailLabel, GmailMessage, CalendarEvent, DriveFile, TaskList, Task, Spreadsheet, Person, ContactGroup } from './types.js';
 import { generateEtag } from '../util/id.js';
 
 const SYSTEM_LABELS: GmailLabel[] = [
@@ -218,6 +218,94 @@ export function createSeedStore(): FwsStore {
     },
     drive: {
       files,
+    },
+    tasks: {
+      taskLists: {
+        'default': {
+          kind: 'tasks#taskList',
+          id: 'default',
+          title: 'My Tasks',
+          updated: '2026-04-01T00:00:00Z',
+          selfLink: '',
+        },
+      },
+      tasks: {
+        'default': {
+          'task001': {
+            kind: 'tasks#task',
+            id: 'task001',
+            title: 'Review Q3 proposal',
+            updated: '2026-04-07T09:00:00Z',
+            selfLink: '',
+            status: 'needsAction',
+            due: '2026-04-10T00:00:00Z',
+            notes: 'Check budget section',
+            position: '00000000000000000001',
+          },
+          'task002': {
+            kind: 'tasks#task',
+            id: 'task002',
+            title: 'Update documentation',
+            updated: '2026-04-06T14:00:00Z',
+            selfLink: '',
+            status: 'completed',
+            completed: '2026-04-06T16:00:00Z',
+            position: '00000000000000000002',
+          },
+        },
+      },
+    },
+    sheets: {
+      spreadsheets: {
+        'sheet001': {
+          spreadsheetId: 'sheet001',
+          properties: {
+            title: 'Budget 2026',
+            locale: 'en_US',
+            timeZone: 'America/New_York',
+          },
+          sheets: [
+            {
+              properties: {
+                sheetId: 0,
+                title: 'Sheet1',
+                index: 0,
+                sheetType: 'GRID',
+                gridProperties: { rowCount: 100, columnCount: 26 },
+              },
+            },
+          ],
+          spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/sheet001/edit',
+        },
+      },
+    },
+    people: {
+      contacts: {
+        'people/c001': {
+          resourceName: 'people/c001',
+          etag: generateEtag(),
+          names: [{ displayName: 'Alice Johnson', givenName: 'Alice', familyName: 'Johnson' }],
+          emailAddresses: [{ value: 'alice@company.com', type: 'work' }],
+          phoneNumbers: [{ value: '+1-555-0101', type: 'work' }],
+          organizations: [{ name: 'Company Inc', title: 'Engineer' }],
+        },
+        'people/c002': {
+          resourceName: 'people/c002',
+          etag: generateEtag(),
+          names: [{ displayName: 'Bob Smith', givenName: 'Bob', familyName: 'Smith' }],
+          emailAddresses: [{ value: 'bob@company.com', type: 'work' }],
+        },
+      },
+      contactGroups: {
+        'contactGroups/myContacts': {
+          resourceName: 'contactGroups/myContacts',
+          etag: generateEtag(),
+          name: 'My Contacts',
+          groupType: 'SYSTEM_CONTACT_GROUP',
+          memberCount: 2,
+          memberResourceNames: ['people/c001', 'people/c002'],
+        },
+      },
     },
   };
 }

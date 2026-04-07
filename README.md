@@ -25,18 +25,26 @@ npm link     # makes `fws` command available globally
 # Start the server (runs in background)
 fws server start
 
-# Copy the export lines printed, then try:
+# Set env vars (printed by the command above)
+export GOOGLE_WORKSPACE_CLI_CONFIG_DIR=~/.local/share/fws/config
+export GOOGLE_WORKSPACE_CLI_TOKEN=fake
+export HTTPS_PROXY=http://localhost:4101
+export SSL_CERT_FILE=~/.local/share/fws/certs/ca.crt
+
+# Try some commands
 gws gmail users messages list --params '{"userId":"me"}'
 gws gmail +triage
-gws gmail +send --to bob@example.com --subject "Hello" --body "Hi there"
 gws calendar events list --params '{"calendarId":"primary"}'
 gws drive files list
+gws tasks tasklists list
+gws sheets spreadsheets get --params '{"spreadsheetId":"sheet001"}'
+gws people people connections list --params '{"resourceName":"people/me","personFields":"names"}'
 
 # When done
 fws server stop
 ```
 
-The server starts with sample seed data (5 emails, 4 calendar events, 5 drive files) so you can try gws commands immediately.
+The server starts with sample seed data (5 emails, 4 calendar events, 5 drive files, 2 tasks, 1 spreadsheet, 2 contacts) so you can try gws commands immediately.
 
 ## Usage
 
@@ -90,10 +98,13 @@ Snapshots are stored in `~/.local/share/fws/snapshots/` (override with `FWS_DATA
 | Gmail    | 5 messages (3 inbox, 1 sent, 1 read), system labels + "Projects" user label |
 | Calendar | 4 events (Daily Standup, Q3 Planning, 1:1, Team Lunch) |
 | Drive    | 5 files (docs, spreadsheet, image, folder) |
+| Tasks    | 1 task list with 2 tasks (1 pending, 1 completed) |
+| Sheets   | 1 spreadsheet ("Budget 2026") |
+| People   | 2 contacts (Alice, Bob), 1 contact group |
 
 ## API support
 
-Gmail (28/79 endpoints + 5 helpers), Calendar (21/37), Drive (18/57). 117 tests, 71 validated through actual `gws` CLI.
+Gmail (28/79 + 5 helpers), Calendar (21/37), Drive (18/57), Tasks (14/14), Sheets (7/17), People (16/24). 135 tests, 89 gws CLI validated.
 
 See [docs/gws-support.md](docs/gws-support.md) for the full endpoint-by-endpoint table.
 

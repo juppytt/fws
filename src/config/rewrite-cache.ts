@@ -2,7 +2,14 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 
-const CACHE_FILES = ['gmail_v1.json', 'calendar_v3.json', 'drive_v3.json'];
+const CACHE_FILES = [
+  'gmail_v1.json',
+  'calendar_v3.json',
+  'drive_v3.json',
+  'tasks_v1.json',
+  'sheets_v4.json',
+  'people_v1.json',
+];
 
 export async function generateConfigDir(port: number, targetDir: string): Promise<string> {
   const sourceConfigDir = process.env.GWS_SOURCE_CONFIG_DIR

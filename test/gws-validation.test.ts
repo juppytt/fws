@@ -728,4 +728,156 @@ describe('gws CLI validation', () => {
       });
     });
   });
+
+  // ===== Tasks =====
+
+  describe('tasks', () => {
+    describe('tasklists', () => {
+      it('gws tasks tasklists list', async () => {
+        const { stdout, exitCode } = await h.gws('tasks tasklists list');
+        expect(exitCode).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.items.length).toBeGreaterThan(0);
+        expect(data.items[0].title).toBe('My Tasks');
+      });
+
+      let newListId: string;
+
+      it('gws tasks tasklists insert', async () => {
+        const { stdout, exitCode } = await h.gws('tasks tasklists insert --json {"title":"Work Tasks"}');
+        expect(exitCode).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.title).toBe('Work Tasks');
+        newListId = data.id;
+      });
+
+      it('gws tasks tasklists get', async () => {
+        const { stdout, exitCode } = await h.gws(`tasks tasklists get --params {"tasklist":"${newListId}"}`);
+        expect(exitCode).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.title).toBe('Work Tasks');
+      });
+
+      it('gws tasks tasklists patch', async () => {
+        const { stdout, exitCode } = await h.gws(`tasks tasklists patch --params {"tasklist":"${newListId}"} --json {"title":"Updated Tasks"}`);
+        expect(exitCode).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.title).toBe('Updated Tasks');
+      });
+
+      it('gws tasks tasklists delete', async () => {
+        const { exitCode } = await h.gws(`tasks tasklists delete --params {"tasklist":"${newListId}"}`);
+        expect(exitCode).toBe(0);
+      });
+    });
+
+    describe('tasks', () => {
+      it('gws tasks tasks list', async () => {
+        const { stdout, exitCode } = await h.gws('tasks tasks list --params {"tasklist":"default"}');
+        expect(exitCode).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.items.length).toBeGreaterThan(0);
+      });
+
+      let newTaskId: string;
+
+      it('gws tasks tasks insert', async () => {
+        const { stdout, exitCode } = await h.gws('tasks tasks insert --params {"tasklist":"default"} --json {"title":"New Task","notes":"Do this"}');
+        expect(exitCode).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.title).toBe('New Task');
+        newTaskId = data.id;
+      });
+
+      it('gws tasks tasks get', async () => {
+        const { stdout, exitCode } = await h.gws(`tasks tasks get --params {"tasklist":"default","task":"${newTaskId}"}`);
+        expect(exitCode).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.title).toBe('New Task');
+      });
+
+      it('gws tasks tasks patch', async () => {
+        const { stdout, exitCode } = await h.gws(`tasks tasks patch --params {"tasklist":"default","task":"${newTaskId}"} --json {"status":"completed"}`);
+        expect(exitCode).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.status).toBe('completed');
+      });
+
+      it('gws tasks tasks delete', async () => {
+        const { exitCode } = await h.gws(`tasks tasks delete --params {"tasklist":"default","task":"${newTaskId}"}`);
+        expect(exitCode).toBe(0);
+      });
+
+      it('gws tasks tasks clear', async () => {
+        const { exitCode } = await h.gws('tasks tasks clear --params {"tasklist":"default"}');
+        expect(exitCode).toBe(0);
+      });
+    });
+  });
+
+  // ===== Sheets =====
+
+  describe('sheets', () => {
+    it('gws sheets spreadsheets get', async () => {
+      const { stdout, exitCode } = await h.gws('sheets spreadsheets get --params {"spreadsheetId":"sheet001"}');
+      expect(exitCode).toBe(0);
+      const data = JSON.parse(stdout);
+      expect(data.properties.title).toBe('Budget 2026');
+    });
+
+    let newSheetId: string;
+
+    it('gws sheets spreadsheets create', async () => {
+      const { stdout, exitCode } = await h.gws('sheets spreadsheets create --json {"properties":{"title":"Test Sheet"}}');
+      expect(exitCode).toBe(0);
+      const data = JSON.parse(stdout);
+      expect(data.properties.title).toBe('Test Sheet');
+      newSheetId = data.spreadsheetId;
+    });
+
+    it('gws sheets spreadsheets values update + get', async () => {
+      // Write values
+      const { exitCode: writeCode } = await h.gws(`sheets spreadsheets values update --params {"spreadsheetId":"${newSheetId}","range":"Sheet1!A1:B2","valueInputOption":"RAW"} --json {"values":[["Name","Age"],["Alice","30"]]}`);
+      expect(writeCode).toBe(0);
+
+      // Read values back
+      const { stdout, exitCode } = await h.gws(`sheets spreadsheets values get --params {"spreadsheetId":"${newSheetId}","range":"Sheet1!A1:B2"}`);
+      expect(exitCode).toBe(0);
+      const data = JSON.parse(stdout);
+      expect(data.values[0][0]).toBe('Name');
+      expect(data.values[1][1]).toBe('30');
+    });
+  });
+
+  // ===== People =====
+
+  describe('people', () => {
+    it('gws people people get', async () => {
+      const { stdout, exitCode } = await h.gws('people people get --params {"personFields":"names,emailAddresses","resourceName":"people/c001"}');
+      expect(exitCode).toBe(0);
+      const data = JSON.parse(stdout);
+      expect(data.names[0].displayName).toBe('Alice Johnson');
+    });
+
+    it('gws people people connections list', async () => {
+      const { stdout, exitCode } = await h.gws('people people connections list --params {"resourceName":"people/me","personFields":"names"}');
+      expect(exitCode).toBe(0);
+      const data = JSON.parse(stdout);
+      expect(data.connections.length).toBeGreaterThan(0);
+    });
+
+    it('gws people contactGroups list', async () => {
+      const { stdout, exitCode } = await h.gws('people contactGroups list');
+      expect(exitCode).toBe(0);
+      const data = JSON.parse(stdout);
+      expect(data.contactGroups.length).toBeGreaterThan(0);
+    });
+
+    it('gws people contactGroups get', async () => {
+      const { stdout, exitCode } = await h.gws('people contactGroups get --params {"resourceName":"contactGroups/myContacts"}');
+      expect(exitCode).toBe(0);
+      const data = JSON.parse(stdout);
+      expect(data.name).toBe('My Contacts');
+    });
+  });
 });
