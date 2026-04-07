@@ -1,12 +1,16 @@
 # fws — Fake Google Workspace
 
-A local mock server that redirects the `gws` CLI, enabling Gmail/Calendar/Drive API testing without OAuth authentication.
+A local mock server that redirects the `gws` CLI, enabling Google Workspace testing without OAuth authentication.
+
+Built with [Claude Code](https://claude.ai/code).
 
 ## How it works
 
-gws sends API requests to the `rootUrl` defined in its discovery cache (`~/.config/gws/cache/*.json`). fws rewrites these URLs to `http://localhost:4100/` and sets `GOOGLE_WORKSPACE_CLI_TOKEN=fake` to bypass auth.
+`gws` sends API requests to the `rootUrl` defined in its discovery cache (`~/.config/gws/cache/*.json`). fws rewrites these URLs to `http://localhost:4100/` and sets `GOOGLE_WORKSPACE_CLI_TOKEN=fake` to bypass auth.
 
-All data lives **in memory** — when the server stops, everything is lost unless you save a snapshot first. Use `fws snapshot save` to persist state.
+For helper commands (`+triage`, `+send`, `+reply`, etc.) that hardcode `googleapis.com` URLs, fws runs a MITM CONNECT proxy on port 4101 that intercepts HTTPS traffic and forwards it to the local mock server.
+
+All data lives **in memory**. When the server stops, everything is lost unless you save a snapshot first. Use `fws snapshot save` to persist state.
 
 ## Install
 
@@ -23,6 +27,8 @@ fws server start
 
 # Copy the export lines printed, then try:
 gws gmail users messages list --params '{"userId":"me"}'
+gws gmail +triage
+gws gmail +send --to bob@example.com --subject "Hello" --body "Hi there"
 gws calendar events list --params '{"calendarId":"primary"}'
 gws drive files list
 
@@ -40,6 +46,7 @@ Starts a temporary server, runs gws, exits. No separate server needed.
 
 ```bash
 fws gmail users messages list --params '{"userId":"me"}'
+fws gmail +triage
 fws calendar calendarList list
 fws drive about get --params '{"fields":"*"}'
 ```
@@ -84,18 +91,16 @@ Snapshots are stored in `~/.local/share/fws/snapshots/` (override with `FWS_DATA
 | Calendar | 4 events (Daily Standup, Q3 Planning, 1:1, Team Lunch) |
 | Drive    | 5 files (docs, spreadsheet, image, folder) |
 
-## Tests
+## API support
 
-```bash
-npm test
-```
+Gmail (28/79 endpoints + 5 helpers), Calendar (12/37), Drive (7/57). 105 tests, 59 validated through actual `gws` CLI.
 
-46 tests (Gmail 17, Calendar 15, Drive 12, Snapshot 2). Each test validates responses through the actual gws CLI.
+See [docs/gws-support.md](docs/gws-support.md) for the full endpoint-by-endpoint table.
 
 ## Documentation
 
 - [docs/cli-reference.md](docs/cli-reference.md) — Full CLI reference with all flags, HTTP API equivalents, and examples
-- [docs/gws-support.md](docs/gws-support.md) — Endpoint-by-endpoint support table (35/173 across Gmail, Calendar, Drive)
+- [docs/gws-support.md](docs/gws-support.md) — Endpoint-by-endpoint support table
 
 ## Structure
 
@@ -104,6 +109,7 @@ bin/fws.ts              CLI entry point
 src/server/routes/      Gmail, Calendar, Drive, and control API routes
 src/store/              In-memory data store + seed data
 src/config/             Discovery cache URL rewriting
+src/proxy/              MITM proxy for helper commands
 test/                   Vitest tests (with gws CLI validation)
 docs/                   API support documentation
 ```
