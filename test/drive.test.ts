@@ -29,10 +29,11 @@ describe('Drive', () => {
   });
 
   describe('files', () => {
-    it('lists empty files initially', async () => {
+    it('lists seed files initially', async () => {
       const res = await h.fetch('/drive/v3/files');
       const data = await res.json();
-      expect(data.files).toEqual([]);
+      expect(data.files.length).toBe(5);
+      expect(data.files.some((f: any) => f.id === 'file001')).toBe(true);
     });
 
     it('creates a file', async () => {

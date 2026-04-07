@@ -46,14 +46,14 @@ describe('Snapshot', () => {
     // 3. Reset
     await h.fetch('/__fws/reset', { method: 'POST' });
 
-    // 4. Verify empty
+    // 4. Verify reset to seed (5 seed messages, 5 seed files — the extras we added are gone)
     const msgsRes = await h.fetch('/gmail/v1/users/me/messages');
     const msgs = await msgsRes.json();
-    expect(msgs.messages || []).toEqual([]);
+    expect(msgs.messages.length).toBe(5); // only seed messages
 
     const filesRes = await h.fetch('/drive/v3/files');
     const files = await filesRes.json();
-    expect(files.files).toEqual([]);
+    expect(files.files.length).toBe(5); // only seed files
 
     // 5. Load snapshot
     await h.fetch('/__fws/snapshot/load', {
@@ -62,14 +62,14 @@ describe('Snapshot', () => {
       body: JSON.stringify(snapshot),
     });
 
-    // 6. Verify data restored
+    // 6. Verify data restored (seed + our extras)
     const msgsRes2 = await h.fetch('/gmail/v1/users/me/messages');
     const msgs2 = await msgsRes2.json();
-    expect(msgs2.messages.length).toBeGreaterThan(0);
+    expect(msgs2.messages.length).toBeGreaterThan(5); // seed + added
 
     const filesRes2 = await h.fetch('/drive/v3/files');
     const files2 = await filesRes2.json();
-    expect(files2.files.length).toBeGreaterThan(0);
+    expect(files2.files.length).toBeGreaterThan(5); // seed + added
 
     // Verify via gws
     const { stdout, exitCode } = await h.gws('gmail users messages list --params {"userId":"me"}');

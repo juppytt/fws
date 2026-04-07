@@ -85,10 +85,11 @@ describe('Calendar', () => {
   });
 
   describe('events', () => {
-    it('lists empty events on primary calendar', async () => {
+    it('lists seed events on primary calendar', async () => {
       const res = await h.fetch('/calendar/v3/calendars/primary/events');
       const data = await res.json();
-      expect(data.items || []).toEqual([]);
+      expect(data.items.length).toBe(4);
+      expect(data.items.some((e: any) => e.id === 'evt001')).toBe(true);
     });
 
     it('lists events via gws', async () => {

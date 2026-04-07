@@ -7,6 +7,7 @@
     "fws": "./dist/bin/fws.js"
   },
   "scripts": {
+    "start": "tsx bin/fws.ts server start",
     "build": "tsc",
     "dev": "tsx bin/fws.ts",
     "test": "vitest run",

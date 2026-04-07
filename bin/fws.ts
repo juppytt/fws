@@ -67,22 +67,26 @@ serverCmd
     await ensureDir(getDataDir());
     await fs.writeFile(getServerInfoPath(), JSON.stringify({ port, pid: process.pid }));
 
-    console.log(`fws server listening on http://localhost:${port}`);
-    console.log(`Config dir: ${configDir}`);
-    console.log(`\nTo use with gws:`);
+    console.log(`fws server listening on http://localhost:${port}\n`);
+    console.log(`Paste this in another terminal to use gws:\n`);
     console.log(`  export GOOGLE_WORKSPACE_CLI_CONFIG_DIR=${configDir}`);
-    console.log(`  export GOOGLE_WORKSPACE_CLI_TOKEN=fake`);
+    console.log(`  export GOOGLE_WORKSPACE_CLI_TOKEN=fake\n`);
+    console.log(`Then try:`);
+    console.log(`  gws gmail users messages list --params '{"userId":"me"}'`);
+    console.log(`  gws gmail users labels list --params '{"userId":"me"}'`);
+    console.log(`  gws calendar events list --params '{"calendarId":"primary"}'`);
+    console.log(`  gws drive files list`);
+    console.log(`  gws drive about get --params '{"fields":"*"}'`);
+    console.log(`\nPress Ctrl+C to stop.\n`);
 
-    process.on('SIGINT', () => {
+    const shutdown = () => {
+      console.log('\nShutting down...');
       server.close();
       fs.unlink(getServerInfoPath()).catch(() => {});
       process.exit(0);
-    });
-    process.on('SIGTERM', () => {
-      server.close();
-      fs.unlink(getServerInfoPath()).catch(() => {});
-      process.exit(0);
-    });
+    };
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
   });
 
 serverCmd
@@ -105,7 +109,6 @@ serverCmd
   .action(async () => {
     try {
       const info = JSON.parse(await fs.readFile(getServerInfoPath(), 'utf-8'));
-      // Check if process is alive
       try {
         process.kill(info.pid, 0);
         console.log(`Server running on port ${info.port} (pid ${info.pid})`);

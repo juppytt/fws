@@ -62,10 +62,11 @@ describe('Gmail', () => {
   });
 
   describe('messages', () => {
-    it('lists empty messages initially', async () => {
+    it('lists seed messages initially', async () => {
       const res = await h.fetch('/gmail/v1/users/me/messages');
       const data = await res.json();
-      expect(data.messages || []).toEqual([]);
+      expect(data.messages.length).toBe(5);
+      expect(data.messages.some((m: any) => m.id === 'msg001')).toBe(true);
     });
 
     it('setup adds a message then list returns it', async () => {
