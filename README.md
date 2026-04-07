@@ -93,7 +93,7 @@ Snapshots are stored in `~/.local/share/fws/snapshots/` (override with `FWS_DATA
 
 ## API support
 
-Gmail (28/79 endpoints + 5 helpers), Calendar (12/37), Drive (7/57). 105 tests, 59 validated through actual `gws` CLI.
+Gmail (28/79 endpoints + 5 helpers), Calendar (21/37), Drive (18/57). 117 tests, 71 validated through actual `gws` CLI.
 
 See [docs/gws-support.md](docs/gws-support.md) for the full endpoint-by-endpoint table.
 

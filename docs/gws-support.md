@@ -1,16 +1,16 @@
 # gws API Support Status
 
-fws currently mocks **41 REST endpoints + 5 helpers** across 3 of 17 gws services.
+fws currently mocks **56 REST endpoints + 5 helpers** across 3 of 17 gws services.
 
-All supported endpoints are validated through actual `gws` CLI commands in `test/gws-validation.test.ts` (59 tests).
+All supported endpoints are validated through actual `gws` CLI commands in `test/gws-validation.test.ts` (71 tests).
 
 ## Summary
 
 | Service | Status | Implemented | Total | Notes |
 |---------|--------|-------------|-------|-------|
 | Gmail | Partial | 28 + 5 helpers | 79 | Messages (incl. batch/import), labels, threads (CRUD), profile, drafts, history, settings, +triage/+send/+reply/+forward |
-| Calendar | Partial | 12 | 37 | Calendars, calendarList, events |
-| Drive | Partial | 7 | 57 | Files, about |
+| Calendar | Partial | 21 | 37 | Calendars (CRUD+clear), calendarList (CRUD), events (CRUD+import/move/quickAdd) |
+| Drive | Partial | 18 | 57 | Files (CRUD+copy+emptyTrash), permissions (CRUD), drives (list/create), about |
 | Sheets | Not yet | 0 | 17 | |
 | Tasks | Not yet | 0 | 14 | |
 | People | Not yet | 0 | 24 | |
@@ -122,7 +122,7 @@ All supported endpoints are validated through actual `gws` CLI commands in `test
 
 ---
 
-## Calendar (12/37)
+## Calendar (21/37)
 
 ### Calendar List
 
@@ -130,10 +130,10 @@ All supported endpoints are validated through actual `gws` CLI commands in `test
 |-------------|-----------|--------|
 | `calendar calendarList list` | calendar.calendarList.list | ✅ gws-tested |
 | `calendar calendarList get` | calendar.calendarList.get | ✅ gws-tested |
-| `calendar calendarList insert` | calendar.calendarList.insert | — |
-| `calendar calendarList patch` | calendar.calendarList.patch | — |
-| `calendar calendarList update` | calendar.calendarList.update | — |
-| `calendar calendarList delete` | calendar.calendarList.delete | — |
+| `calendar calendarList insert` | calendar.calendarList.insert | ✅ gws-tested |
+| `calendar calendarList patch` | calendar.calendarList.patch | ✅ gws-tested |
+| `calendar calendarList update` | calendar.calendarList.update | ✅ gws-tested |
+| `calendar calendarList delete` | calendar.calendarList.delete | ✅ gws-tested |
 | `calendar calendarList watch` | calendar.calendarList.watch | — |
 
 ### Calendars
@@ -144,8 +144,8 @@ All supported endpoints are validated through actual `gws` CLI commands in `test
 | `calendar calendars get` | calendar.calendars.get | ✅ gws-tested |
 | `calendar calendars patch` | calendar.calendars.patch | ✅ gws-tested |
 | `calendar calendars delete` | calendar.calendars.delete | ✅ gws-tested |
-| `calendar calendars update` | calendar.calendars.update | — |
-| `calendar calendars clear` | calendar.calendars.clear | — |
+| `calendar calendars update` | calendar.calendars.update | ✅ gws-tested |
+| `calendar calendars clear` | calendar.calendars.clear | ✅ gws-tested |
 
 ### Events
 
@@ -157,10 +157,10 @@ All supported endpoints are validated through actual `gws` CLI commands in `test
 | `calendar events patch` | calendar.events.patch | ✅ gws-tested |
 | `calendar events update` | calendar.events.update | ✅ gws-tested |
 | `calendar events delete` | calendar.events.delete | ✅ gws-tested |
-| `calendar events import` | calendar.events.import | — |
+| `calendar events import` | calendar.events.import | ✅ gws-tested |
 | `calendar events instances` | calendar.events.instances | — |
-| `calendar events move` | calendar.events.move | — |
-| `calendar events quickAdd` | calendar.events.quickAdd | — |
+| `calendar events move` | calendar.events.move | ✅ gws-tested |
+| `calendar events quickAdd` | calendar.events.quickAdd | ✅ gws-tested |
 | `calendar events watch` | calendar.events.watch | — |
 
 ### Other (all unsupported)
@@ -169,7 +169,7 @@ ACL (7 endpoints), channels, colors, freebusy, settings — not implemented.
 
 ---
 
-## Drive (7/57)
+## Drive (18/57)
 
 ### About
 
@@ -190,14 +190,36 @@ ACL (7 endpoints), channels, colors, freebusy, settings — not implemented.
 | `drive files export` | drive.files.export | — |
 | `drive files generateIds` | drive.files.generateIds | — |
 | `drive files download` | drive.files.download | — |
-| `drive files emptyTrash` | drive.files.emptyTrash | — |
+| `drive files emptyTrash` | drive.files.emptyTrash | ✅ gws-tested |
 | `drive files watch` | drive.files.watch | — |
 | `drive files modifyLabels` | drive.files.modifyLabels | — |
 | `drive files listLabels` | drive.files.listLabels | — |
 
+### Permissions
+
+| gws command | API method | Status |
+|-------------|-----------|--------|
+| `drive permissions list` | drive.permissions.list | ✅ gws-tested |
+| `drive permissions get` | drive.permissions.get | ✅ gws-tested |
+| `drive permissions create` | drive.permissions.create | ✅ gws-tested |
+| `drive permissions update` | drive.permissions.update | ✅ gws-tested |
+| `drive permissions delete` | drive.permissions.delete | ✅ gws-tested |
+
+### Drives (Shared Drives)
+
+| gws command | API method | Status |
+|-------------|-----------|--------|
+| `drive drives list` | drive.drives.list | ✅ gws-tested |
+| `drive drives create` | drive.drives.create | ✅ gws-tested |
+| `drive drives get` | drive.drives.get | ✅ gws-tested |
+| `drive drives update` | drive.drives.update | ✅ gws-tested |
+| `drive drives delete` | drive.drives.delete | ✅ gws-tested |
+| `drive drives hide` | drive.drives.hide | — |
+| `drive drives unhide` | drive.drives.unhide | — |
+
 ### Other (all unsupported)
 
-Drives (8), permissions (5), comments (5), replies (5), revisions (4), changes (3), channels, apps, teamdrives, approvals, accessproposals, operations — not implemented.
+Comments (5), replies (5), revisions (4), changes (3), channels, apps, teamdrives, approvals, accessproposals, operations — not implemented.
 
 ---
 

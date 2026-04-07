@@ -34,6 +34,77 @@ export function calendarRoutes(): Router {
     res.json(entry);
   });
 
+  // INSERT calendarList entry
+  r.post(`${PREFIX}/users/me/calendarList`, (req, res) => {
+    const store = getStore();
+    const id = req.body.id;
+    if (!id || !store.calendar.calendars[id]) {
+      return res.status(404).json({
+        error: { code: 404, message: 'Not Found', status: 'NOT_FOUND' },
+      });
+    }
+    const cal = store.calendar.calendars[id];
+    const etag = generateEtag();
+    store.calendar.calendarList[id] = {
+      kind: 'calendar#calendarListEntry',
+      id,
+      summary: cal.summary,
+      description: cal.description,
+      timeZone: cal.timeZone,
+      accessRole: req.body.accessRole || 'reader',
+      defaultReminders: req.body.defaultReminders || [],
+      selected: req.body.selected ?? true,
+      etag,
+    };
+    res.json(store.calendar.calendarList[id]);
+  });
+
+  // PATCH calendarList entry
+  r.patch(`${PREFIX}/users/me/calendarList/:calendarId`, (req, res) => {
+    const id = resolveCalendarId(req.params.calendarId);
+    const store = getStore();
+    const entry = store.calendar.calendarList[id];
+    if (!entry) {
+      return res.status(404).json({
+        error: { code: 404, message: 'Not Found', status: 'NOT_FOUND' },
+      });
+    }
+    Object.assign(entry, req.body, { id, kind: entry.kind });
+    entry.etag = generateEtag();
+    res.json(entry);
+  });
+
+  // UPDATE calendarList entry (PUT)
+  r.put(`${PREFIX}/users/me/calendarList/:calendarId`, (req, res) => {
+    const id = resolveCalendarId(req.params.calendarId);
+    const store = getStore();
+    if (!store.calendar.calendarList[id]) {
+      return res.status(404).json({
+        error: { code: 404, message: 'Not Found', status: 'NOT_FOUND' },
+      });
+    }
+    store.calendar.calendarList[id] = {
+      kind: 'calendar#calendarListEntry',
+      ...req.body,
+      id,
+      etag: generateEtag(),
+    };
+    res.json(store.calendar.calendarList[id]);
+  });
+
+  // DELETE calendarList entry
+  r.delete(`${PREFIX}/users/me/calendarList/:calendarId`, (req, res) => {
+    const id = resolveCalendarId(req.params.calendarId);
+    const store = getStore();
+    if (!store.calendar.calendarList[id]) {
+      return res.status(404).json({
+        error: { code: 404, message: 'Not Found', status: 'NOT_FOUND' },
+      });
+    }
+    delete store.calendar.calendarList[id];
+    res.status(204).send();
+  });
+
   // CREATE calendar
   r.post(`${PREFIX}/calendars`, (req, res) => {
     const store = getStore();
@@ -95,6 +166,45 @@ export function calendarRoutes(): Router {
       listEntry.etag = cal.etag;
     }
     res.json(cal);
+  });
+
+  // UPDATE calendar (PUT)
+  r.put(`${PREFIX}/calendars/:calendarId`, (req, res) => {
+    const id = resolveCalendarId(req.params.calendarId);
+    const store = getStore();
+    if (!store.calendar.calendars[id]) {
+      return res.status(404).json({
+        error: { code: 404, message: 'Not Found', status: 'NOT_FOUND' },
+      });
+    }
+    const etag = generateEtag();
+    store.calendar.calendars[id] = {
+      kind: 'calendar#calendar',
+      ...req.body,
+      id,
+      etag,
+    };
+    const listEntry = store.calendar.calendarList[id];
+    if (listEntry) {
+      listEntry.summary = req.body.summary || listEntry.summary;
+      listEntry.description = req.body.description;
+      listEntry.timeZone = req.body.timeZone || listEntry.timeZone;
+      listEntry.etag = etag;
+    }
+    res.json(store.calendar.calendars[id]);
+  });
+
+  // CLEAR calendar (delete all events)
+  r.post(`${PREFIX}/calendars/:calendarId/clear`, (req, res) => {
+    const id = resolveCalendarId(req.params.calendarId);
+    const store = getStore();
+    if (!store.calendar.events[id]) {
+      return res.status(404).json({
+        error: { code: 404, message: 'Not Found', status: 'NOT_FOUND' },
+      });
+    }
+    store.calendar.events[id] = {};
+    res.status(204).send();
   });
 
   // DELETE calendar
@@ -277,6 +387,96 @@ export function calendarRoutes(): Router {
     }
     delete store.calendar.events[calId][req.params.eventId];
     res.status(204).send();
+  });
+
+  // IMPORT event (like insert but preserves iCalUID)
+  r.post(`${PREFIX}/calendars/:calendarId/events/import`, (req, res) => {
+    const calId = resolveCalendarId(req.params.calendarId);
+    const store = getStore();
+    if (!store.calendar.events[calId]) {
+      return res.status(404).json({
+        error: { code: 404, message: 'Not Found', status: 'NOT_FOUND' },
+      });
+    }
+    const eventId = generateId();
+    const now = new Date().toISOString();
+    const userEmail = store.gmail.profile.emailAddress;
+    const event = {
+      kind: 'calendar#event' as const,
+      ...req.body,
+      id: eventId,
+      status: req.body.status || 'confirmed',
+      created: now,
+      updated: now,
+      creator: req.body.creator || { email: userEmail },
+      organizer: req.body.organizer || { email: userEmail, self: true },
+      etag: generateEtag(),
+      htmlLink: `https://calendar.google.com/event?eid=${eventId}`,
+      iCalUID: req.body.iCalUID || `${eventId}@example.com`,
+    };
+    store.calendar.events[calId][eventId] = event;
+    res.json(event);
+  });
+
+  // MOVE event to another calendar
+  r.post(`${PREFIX}/calendars/:calendarId/events/:eventId/move`, (req, res) => {
+    const srcCalId = resolveCalendarId(req.params.calendarId);
+    const destCalId = resolveCalendarId(req.query.destination as string);
+    const store = getStore();
+    const event = store.calendar.events[srcCalId]?.[req.params.eventId];
+    if (!event) {
+      return res.status(404).json({
+        error: { code: 404, message: 'Not Found', status: 'NOT_FOUND' },
+      });
+    }
+    if (!store.calendar.events[destCalId]) {
+      return res.status(404).json({
+        error: { code: 404, message: 'Destination calendar not found', status: 'NOT_FOUND' },
+      });
+    }
+    // Move: delete from source, add to destination
+    delete store.calendar.events[srcCalId][req.params.eventId];
+    store.calendar.events[destCalId][req.params.eventId] = event;
+    event.updated = new Date().toISOString();
+    event.etag = generateEtag();
+    res.json(event);
+  });
+
+  // QUICK ADD event (from text)
+  r.post(`${PREFIX}/calendars/:calendarId/events/quickAdd`, (req, res) => {
+    const calId = resolveCalendarId(req.params.calendarId);
+    const store = getStore();
+    if (!store.calendar.events[calId]) {
+      return res.status(404).json({
+        error: { code: 404, message: 'Not Found', status: 'NOT_FOUND' },
+      });
+    }
+    const text = req.query.text as string || '';
+    const eventId = generateId();
+    const now = new Date().toISOString();
+    const userEmail = store.gmail.profile.emailAddress;
+
+    // Simple parsing: use the text as summary, default to 1h from now
+    const start = new Date();
+    const end = new Date(start.getTime() + 3600000);
+
+    const event = {
+      kind: 'calendar#event' as const,
+      id: eventId,
+      status: 'confirmed' as const,
+      summary: text,
+      start: { dateTime: start.toISOString() },
+      end: { dateTime: end.toISOString() },
+      created: now,
+      updated: now,
+      creator: { email: userEmail },
+      organizer: { email: userEmail, self: true },
+      etag: generateEtag(),
+      htmlLink: `https://calendar.google.com/event?eid=${eventId}`,
+      iCalUID: `${eventId}@example.com`,
+    };
+    store.calendar.events[calId][eventId] = event;
+    res.json(event);
   });
 
   return r;

@@ -122,6 +122,17 @@ export function driveRoutes(): Router {
     res.json(file);
   });
 
+  // EMPTY TRASH (must be before DELETE /files/:fileId)
+  r.delete(`${PREFIX}/files/trash`, (_req, res) => {
+    const store = getStore();
+    for (const [id, file] of Object.entries(store.drive.files)) {
+      if (file.trashed) {
+        delete store.drive.files[id];
+      }
+    }
+    res.status(204).send();
+  });
+
   // DELETE file
   r.delete(`${PREFIX}/files/:fileId`, (req, res) => {
     const store = getStore();
@@ -156,6 +167,143 @@ export function driveRoutes(): Router {
     };
     store.drive.files[id] = copy;
     res.json(copy);
+  });
+
+  // === Permissions ===
+
+  // LIST permissions
+  r.get(`${PREFIX}/files/:fileId/permissions`, (req, res) => {
+    const file = getStore().drive.files[req.params.fileId];
+    if (!file) {
+      return res.status(404).json({
+        error: { code: 404, message: 'File not found.', status: 'NOT_FOUND' },
+      });
+    }
+    // Return owner as default permission
+    const userEmail = getStore().gmail.profile.emailAddress;
+    res.json({
+      kind: 'drive#permissionList',
+      permissions: [
+        {
+          kind: 'drive#permission',
+          id: 'owner',
+          type: 'user',
+          emailAddress: userEmail,
+          role: 'owner',
+          displayName: 'Test User',
+        },
+      ],
+    });
+  });
+
+  // GET permission
+  r.get(`${PREFIX}/files/:fileId/permissions/:permissionId`, (req, res) => {
+    const file = getStore().drive.files[req.params.fileId];
+    if (!file) {
+      return res.status(404).json({
+        error: { code: 404, message: 'File not found.', status: 'NOT_FOUND' },
+      });
+    }
+    const userEmail = getStore().gmail.profile.emailAddress;
+    if (req.params.permissionId === 'owner') {
+      return res.json({
+        kind: 'drive#permission',
+        id: 'owner',
+        type: 'user',
+        emailAddress: userEmail,
+        role: 'owner',
+        displayName: 'Test User',
+      });
+    }
+    res.status(404).json({
+      error: { code: 404, message: 'Permission not found.', status: 'NOT_FOUND' },
+    });
+  });
+
+  // CREATE permission
+  r.post(`${PREFIX}/files/:fileId/permissions`, (req, res) => {
+    const file = getStore().drive.files[req.params.fileId];
+    if (!file) {
+      return res.status(404).json({
+        error: { code: 404, message: 'File not found.', status: 'NOT_FOUND' },
+      });
+    }
+    const id = generateId(8);
+    res.json({
+      kind: 'drive#permission',
+      id,
+      type: req.body.type || 'user',
+      emailAddress: req.body.emailAddress,
+      role: req.body.role || 'reader',
+    });
+  });
+
+  // UPDATE permission
+  r.patch(`${PREFIX}/files/:fileId/permissions/:permissionId`, (req, res) => {
+    const file = getStore().drive.files[req.params.fileId];
+    if (!file) {
+      return res.status(404).json({
+        error: { code: 404, message: 'File not found.', status: 'NOT_FOUND' },
+      });
+    }
+    res.json({
+      kind: 'drive#permission',
+      id: req.params.permissionId,
+      ...req.body,
+    });
+  });
+
+  // DELETE permission
+  r.delete(`${PREFIX}/files/:fileId/permissions/:permissionId`, (req, res) => {
+    const file = getStore().drive.files[req.params.fileId];
+    if (!file) {
+      return res.status(404).json({
+        error: { code: 404, message: 'File not found.', status: 'NOT_FOUND' },
+      });
+    }
+    res.status(204).send();
+  });
+
+  // === Shared Drives ===
+
+  // LIST drives
+  r.get(`${PREFIX}/drives`, (_req, res) => {
+    res.json({
+      kind: 'drive#driveList',
+      drives: [],
+    });
+  });
+
+  // CREATE drive
+  r.post(`${PREFIX}/drives`, (req, res) => {
+    const id = generateId();
+    res.json({
+      kind: 'drive#drive',
+      id,
+      name: req.body.name || 'Untitled Drive',
+      createdTime: new Date().toISOString(),
+    });
+  });
+
+  // GET drive
+  r.get(`${PREFIX}/drives/:driveId`, (req, res) => {
+    res.status(404).json({
+      error: { code: 404, message: 'Shared drive not found.', status: 'NOT_FOUND' },
+    });
+  });
+
+  // UPDATE drive
+  r.patch(`${PREFIX}/drives/:driveId`, (req, res) => {
+    res.status(404).json({
+      error: { code: 404, message: 'Shared drive not found.', status: 'NOT_FOUND' },
+    });
+  });
+
+  // DELETE drive
+  r.delete(`${PREFIX}/drives/:driveId`, (req, res) => {
+    res.status(404).json({
+      error: { code: 404, message: 'Shared drive not found.', status: 'NOT_FOUND' },
+    });
   });
 
   return r;

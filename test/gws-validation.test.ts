@@ -426,6 +426,33 @@ describe('gws CLI validation', () => {
         const data = JSON.parse(stdout);
         expect(data.id).toBe('testuser@example.com');
       });
+
+      it('gws calendar calendarList patch', async () => {
+        const { stdout, exitCode } = await h.gws('calendar calendarList patch --params {"calendarId":"testuser@example.com"} --json {"colorId":"9"}');
+        expect(exitCode).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.id).toBe('testuser@example.com');
+      });
+
+      it('gws calendar calendarList delete + insert', async () => {
+        // Create a calendar, delete from list, re-insert
+        const createRes = await h.fetch('/calendar/v3/calendars', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ summary: 'ListTest' }),
+        });
+        const cal = await createRes.json();
+
+        // Delete from list
+        const { exitCode: delCode } = await h.gws(`calendar calendarList delete --params {"calendarId":"${cal.id}"}`);
+        expect(delCode).toBe(0);
+
+        // Re-insert
+        const { stdout, exitCode } = await h.gws(`calendar calendarList insert --json {"id":"${cal.id}"}`);
+        expect(exitCode).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.id).toBe(cal.id);
+      });
     });
 
     describe('calendars', () => {
@@ -451,6 +478,28 @@ describe('gws CLI validation', () => {
         expect(exitCode).toBe(0);
         const data = JSON.parse(stdout);
         expect(data.summary).toBe('Patched Calendar');
+      });
+
+      it('gws calendar calendars update (PUT)', async () => {
+        const { stdout, exitCode } = await h.gws(`calendar calendars update --params {"calendarId":"${newCalId}"} --json {"summary":"PUT Calendar","timeZone":"America/New_York"}`);
+        expect(exitCode).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.summary).toBe('PUT Calendar');
+      });
+
+      it('gws calendar calendars clear', async () => {
+        // Add an event first
+        await h.fetch(`/calendar/v3/calendars/${newCalId}/events`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ summary: 'To clear', start: { dateTime: '2026-06-01T10:00:00Z' }, end: { dateTime: '2026-06-01T11:00:00Z' } }),
+        });
+        const { exitCode } = await h.gws(`calendar calendars clear --params {"calendarId":"${newCalId}"}`);
+        expect(exitCode).toBe(0);
+        // Verify events cleared
+        const eventsRes = await h.fetch(`/calendar/v3/calendars/${newCalId}/events`);
+        const events = await eventsRes.json();
+        expect(events.items.length).toBe(0);
       });
 
       it('gws calendar calendars delete', async () => {
@@ -510,6 +559,48 @@ describe('gws CLI validation', () => {
       it('gws calendar events delete', async () => {
         const { exitCode } = await h.gws(`calendar events delete --params {"calendarId":"primary","eventId":"${newEventId}"}`);
         expect(exitCode).toBe(0);
+      });
+
+      it('gws calendar events import', async () => {
+        const { stdout, exitCode } = await h.gws('calendar events import --params {"calendarId":"primary"} --json {"summary":"Imported Event","start":{"dateTime":"2026-07-01T10:00:00Z"},"end":{"dateTime":"2026-07-01T11:00:00Z"},"iCalUID":"imported@example.com"}');
+        expect(exitCode).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.summary).toBe('Imported Event');
+        expect(data.iCalUID).toBe('imported@example.com');
+      });
+
+      it('gws calendar events quickAdd', async () => {
+        const { stdout, exitCode } = await h.gws('calendar events quickAdd --params {"calendarId":"primary","text":"Lunch with Alice"}');
+        expect(exitCode).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.summary).toBe('Lunch with Alice');
+      });
+
+      it('gws calendar events move', async () => {
+        // Create event in primary, create second calendar, move event
+        const evtRes = await h.fetch('/calendar/v3/calendars/primary/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ summary: 'Move me', start: { dateTime: '2026-08-01T10:00:00Z' }, end: { dateTime: '2026-08-01T11:00:00Z' } }),
+        });
+        const evt = await evtRes.json();
+
+        const calRes = await h.fetch('/calendar/v3/calendars', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ summary: 'Dest Calendar' }),
+        });
+        const destCal = await calRes.json();
+
+        const { stdout, exitCode } = await h.gws(`calendar events move --params {"calendarId":"primary","eventId":"${evt.id}","destination":"${destCal.id}"}`);
+        expect(exitCode).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.summary).toBe('Move me');
+
+        // Verify moved to dest
+        const destEventsRes = await h.fetch(`/calendar/v3/calendars/${destCal.id}/events`);
+        const destEvents = await destEventsRes.json();
+        expect(destEvents.items.some((e: any) => e.id === evt.id)).toBe(true);
       });
     });
   });
@@ -578,6 +669,62 @@ describe('gws CLI validation', () => {
       it('gws drive files delete', async () => {
         const { exitCode } = await h.gws(`drive files delete --params {"fileId":"${newFileId}"}`);
         expect(exitCode).toBe(0);
+      });
+
+      it('gws drive files emptyTrash', async () => {
+        // Create and trash a file
+        const createRes = await h.fetch('/drive/v3/files', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: 'trash-me.txt' }),
+        });
+        const file = await createRes.json();
+        await h.fetch(`/drive/v3/files/${file.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ trashed: true }),
+        });
+
+        const { exitCode } = await h.gws('drive files emptyTrash');
+        expect(exitCode).toBe(0);
+
+        // Verify trashed file is gone
+        const getRes = await h.fetch(`/drive/v3/files/${file.id}`);
+        expect(getRes.status).toBe(404);
+      });
+    });
+
+    describe('permissions', () => {
+      it('gws drive permissions list', async () => {
+        const { stdout, exitCode } = await h.gws('drive permissions list --params {"fileId":"file001"}');
+        expect(exitCode).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.permissions.length).toBeGreaterThan(0);
+        expect(data.permissions[0].role).toBe('owner');
+      });
+
+      it('gws drive permissions create', async () => {
+        const { stdout, exitCode } = await h.gws('drive permissions create --params {"fileId":"file001"} --json {"type":"user","role":"reader","emailAddress":"reader@example.com"}');
+        expect(exitCode).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.role).toBe('reader');
+        expect(data.emailAddress).toBe('reader@example.com');
+      });
+
+      it('gws drive permissions get', async () => {
+        const { stdout, exitCode } = await h.gws('drive permissions get --params {"fileId":"file001","permissionId":"owner"}');
+        expect(exitCode).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.role).toBe('owner');
+      });
+    });
+
+    describe('drives', () => {
+      it('gws drive drives list', async () => {
+        const { stdout, exitCode } = await h.gws('drive drives list');
+        expect(exitCode).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.drives).toBeDefined();
       });
     });
   });
