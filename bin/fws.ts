@@ -3,6 +3,7 @@ import { Command } from 'commander';
 import { createApp } from '../src/server/app.js';
 import { resetStore, loadStore, serializeStore, deserializeStore } from '../src/store/index.js';
 import { generateConfigDir } from '../src/config/rewrite-cache.js';
+import { generateCACert, startMitmProxy } from '../src/proxy/mitm.js';
 import { spawn, execFile } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -10,6 +11,7 @@ import os from 'node:os';
 import type { Server } from 'node:http';
 
 const DEFAULT_PORT = 4100;
+const DEFAULT_PROXY_PORT = 4101;
 
 function getDataDir(): string {
   return process.env.FWS_DATA_DIR || path.join(os.homedir(), '.local', 'share', 'fws');
@@ -61,16 +63,26 @@ serverCmd
       const configDir = path.join(getDataDir(), 'config');
       await generateConfigDir(port, configDir);
 
+      // Generate CA cert for MITM proxy
+      const { caPath } = await generateCACert(getDataDir());
+
       const app = createApp();
       const server: Server = await new Promise((resolve) => {
         const s = app.listen(port, () => resolve(s));
       });
 
+      // Start MITM proxy for helper commands (+triage, +send, etc.)
+      const proxyPort = port + 1;
+      const proxyServer = startMitmProxy(port, proxyPort);
+
       await ensureDir(getDataDir());
-      await fs.writeFile(getServerInfoPath(), JSON.stringify({ port, pid: process.pid }));
+      await fs.writeFile(getServerInfoPath(), JSON.stringify({
+        port, proxyPort, pid: process.pid, caPath,
+      }));
 
       const shutdown = () => {
         server.close();
+        proxyServer.close();
         fs.unlink(getServerInfoPath()).catch(() => {});
         process.exit(0);
       };
@@ -126,12 +138,20 @@ serverCmd
     await logFd.close();
 
     if (started) {
+      // Read server info to get caPath and proxyPort
+      const serverInfo = JSON.parse(await fs.readFile(getServerInfoPath(), 'utf-8').catch(() => '{}'));
+      const proxyPort = serverInfo.proxyPort || port + 1;
+      const caPath = serverInfo.caPath || path.join(getDataDir(), 'certs', 'ca.crt');
+
       console.log(`fws server started on port ${port} (pid ${child.pid})\n`);
       console.log(`To use with gws:\n`);
       console.log(`  export GOOGLE_WORKSPACE_CLI_CONFIG_DIR=${configDir}`);
-      console.log(`  export GOOGLE_WORKSPACE_CLI_TOKEN=fake\n`);
+      console.log(`  export GOOGLE_WORKSPACE_CLI_TOKEN=fake`);
+      console.log(`  export HTTPS_PROXY=http://localhost:${proxyPort}`);
+      console.log(`  export SSL_CERT_FILE=${caPath}\n`);
       console.log(`Then try:\n`);
       console.log(`  gws gmail users messages list --params '{"userId":"me"}'`);
+      console.log(`  gws gmail +triage`);
       console.log(`  gws calendar events list --params '{"calendarId":"primary"}'`);
       console.log(`  gws drive files list\n`);
       console.log(`Stop with: fws server stop`);
@@ -355,10 +375,16 @@ const SUBCOMMANDS = ['server', 'snapshot', 'setup', 'reset', 'help', '--help', '
 
 async function runProxy(args: string[]): Promise<void> {
   const port = DEFAULT_PORT;
+  const proxyPort = DEFAULT_PROXY_PORT;
 
   // Start server in-process
   const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'fws-proxy-'));
   await generateConfigDir(port, configDir);
+
+  // Generate CA and start MITM proxy
+  const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'fws-proxy-data-'));
+  const { caPath } = await generateCACert(dataDir);
+  const proxyServer = startMitmProxy(port, proxyPort);
 
   const app = createApp();
   const server: Server = await new Promise((resolve) => {
@@ -370,13 +396,17 @@ async function runProxy(args: string[]): Promise<void> {
     ...process.env,
     GOOGLE_WORKSPACE_CLI_CONFIG_DIR: configDir,
     GOOGLE_WORKSPACE_CLI_TOKEN: 'fake',
+    HTTPS_PROXY: `http://localhost:${proxyPort}`,
+    SSL_CERT_FILE: caPath,
   };
 
   const child = spawn(gwsPath, args, { env, stdio: 'inherit' });
 
   child.on('close', async (code) => {
     server.close();
+    proxyServer.close();
     await fs.rm(configDir, { recursive: true, force: true });
+    await fs.rm(dataDir, { recursive: true, force: true });
     process.exit(code ?? 0);
   });
 }
