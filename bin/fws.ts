@@ -38,55 +38,91 @@ const serverCmd = program.command('server');
 
 serverCmd
   .command('start')
-  .description('Start the mock server')
+  .description('Start the mock server in the background')
   .option('-p, --port <port>', 'Port number', String(DEFAULT_PORT))
   .option('-s, --snapshot <name>', 'Load a snapshot on start')
+  .option('--foreground', 'Run in foreground (used internally)')
   .action(async (opts) => {
     const port = parseInt(opts.port);
 
-    if (opts.snapshot) {
-      const snapshotPath = path.join(getSnapshotsDir(), opts.snapshot, 'store.json');
-      try {
-        const data = await fs.readFile(snapshotPath, 'utf-8');
-        loadStore(deserializeStore(data));
-        console.log(`Loaded snapshot: ${opts.snapshot}`);
-      } catch {
-        console.error(`Snapshot not found: ${opts.snapshot}`);
-        process.exit(1);
+    if (opts.foreground) {
+      // Actually run the server (called by the background spawner below)
+      if (opts.snapshot) {
+        const snapshotPath = path.join(getSnapshotsDir(), opts.snapshot, 'store.json');
+        try {
+          const data = await fs.readFile(snapshotPath, 'utf-8');
+          loadStore(deserializeStore(data));
+        } catch {
+          console.error(`Snapshot not found: ${opts.snapshot}`);
+          process.exit(1);
+        }
       }
+
+      const configDir = path.join(getDataDir(), 'config');
+      await generateConfigDir(port, configDir);
+
+      const app = createApp();
+      const server: Server = await new Promise((resolve) => {
+        const s = app.listen(port, () => resolve(s));
+      });
+
+      await ensureDir(getDataDir());
+      await fs.writeFile(getServerInfoPath(), JSON.stringify({ port, pid: process.pid }));
+
+      const shutdown = () => {
+        server.close();
+        fs.unlink(getServerInfoPath()).catch(() => {});
+        process.exit(0);
+      };
+      process.on('SIGINT', shutdown);
+      process.on('SIGTERM', shutdown);
+      return;
     }
 
+    // Spawn the server as a detached background process
     const configDir = path.join(getDataDir(), 'config');
+    await ensureDir(getDataDir());
     await generateConfigDir(port, configDir);
 
-    const app = createApp();
-    const server: Server = await new Promise((resolve) => {
-      const s = app.listen(port, () => resolve(s));
+    const logFile = path.join(getDataDir(), 'server.log');
+    const logFd = await fs.open(logFile, 'a');
+
+    const args = ['server', 'start', '--foreground', '-p', String(port)];
+    if (opts.snapshot) args.push('-s', opts.snapshot);
+
+    const tsxPath = path.join(import.meta.dirname, '..', 'node_modules', '.bin', 'tsx');
+    const scriptPath = path.join(import.meta.dirname, 'fws.ts');
+
+    const child = spawn(tsxPath, [scriptPath, ...args], {
+      detached: true,
+      stdio: ['ignore', logFd.fd, logFd.fd],
     });
+    child.unref();
 
-    await ensureDir(getDataDir());
-    await fs.writeFile(getServerInfoPath(), JSON.stringify({ port, pid: process.pid }));
+    // Wait briefly for server to start, then verify
+    await new Promise(r => setTimeout(r, 500));
 
-    console.log(`fws server listening on http://localhost:${port}\n`);
-    console.log(`Paste this in another terminal to use gws:\n`);
-    console.log(`  export GOOGLE_WORKSPACE_CLI_CONFIG_DIR=${configDir}`);
-    console.log(`  export GOOGLE_WORKSPACE_CLI_TOKEN=fake\n`);
-    console.log(`Then try:`);
-    console.log(`  gws gmail users messages list --params '{"userId":"me"}'`);
-    console.log(`  gws gmail users labels list --params '{"userId":"me"}'`);
-    console.log(`  gws calendar events list --params '{"calendarId":"primary"}'`);
-    console.log(`  gws drive files list`);
-    console.log(`  gws drive about get --params '{"fields":"*"}'`);
-    console.log(`\nPress Ctrl+C to stop.\n`);
+    try {
+      const res = await fetch(`http://localhost:${port}/__fws/status`);
+      if (res.ok) {
+        console.log(`fws server started on port ${port} (pid ${child.pid})`);
+        console.log(`Log: ${logFile}\n`);
+        console.log(`To use with gws:\n`);
+        console.log(`  export GOOGLE_WORKSPACE_CLI_CONFIG_DIR=${configDir}`);
+        console.log(`  export GOOGLE_WORKSPACE_CLI_TOKEN=fake\n`);
+        console.log(`Then try:\n`);
+        console.log(`  gws gmail users messages list --params '{"userId":"me"}'`);
+        console.log(`  gws calendar events list --params '{"calendarId":"primary"}'`);
+        console.log(`  gws drive files list\n`);
+        console.log(`Stop with: fws server stop`);
+      } else {
+        console.error('Server started but health check failed');
+      }
+    } catch {
+      console.error('Failed to start server. Check log:', logFile);
+    }
 
-    const shutdown = () => {
-      console.log('\nShutting down...');
-      server.close();
-      fs.unlink(getServerInfoPath()).catch(() => {});
-      process.exit(0);
-    };
-    process.on('SIGINT', shutdown);
-    process.on('SIGTERM', shutdown);
+    await logFd.close();
   });
 
 serverCmd

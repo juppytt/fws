@@ -18,15 +18,15 @@ npm link     # makes `fws` command available globally
 ## Quick Start
 
 ```bash
-# Start the server (runs in foreground)
+# Start the server (runs in background)
 fws server start
 
-# In another terminal, paste the export lines printed by the server, then:
+# Copy the export lines printed, then try:
 gws gmail users messages list --params '{"userId":"me"}'
 gws calendar events list --params '{"calendarId":"primary"}'
 gws drive files list
 
-# Stop the server
+# When done
 fws server stop
 ```
 
@@ -47,9 +47,10 @@ fws drive about get --params '{"fields":"*"}'
 ### Server mode (persistent)
 
 ```bash
-fws server start                  # Start (foreground)
+fws server start                  # Start in background
 fws server status                 # Check if running
 fws server stop                   # Stop
+fws server start --foreground     # Run in foreground (for debugging)
 ```
 
 ### Setup (add data to running server)
