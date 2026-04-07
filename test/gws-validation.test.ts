@@ -62,6 +62,13 @@ describe('gws CLI validation', () => {
         expect(data.name).toBe('RenamedLabel');
       });
 
+      it('gws gmail users labels update (PUT)', async () => {
+        const { stdout, exitCode } = await h.gws(`gmail users labels update --params {"userId":"me","id":"${createdLabelId}"} --json {"name":"PutLabel","messageListVisibility":"show","labelListVisibility":"labelShow"}`);
+        expect(exitCode).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.name).toBe('PutLabel');
+      });
+
       it('gws gmail users labels delete', async () => {
         const { stdout, exitCode } = await h.gws(`gmail users labels delete --params {"userId":"me","id":"${createdLabelId}"}`);
         expect(exitCode).toBe(0);
@@ -186,6 +193,59 @@ describe('gws CLI validation', () => {
         const data = JSON.parse(stdout);
         expect(data.id).toBeTruthy();
       });
+
+      it('gws gmail users messages import', async () => {
+        const raw = Buffer.from(
+          'From: imported@test.com\r\nTo: testuser@example.com\r\nSubject: Imported\r\n\r\nImported body'
+        ).toString('base64url');
+        const { stdout, exitCode } = await h.gws(`gmail users messages import --params {"userId":"me"} --json {"raw":"${raw}"}`);
+        expect(exitCode).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.id).toBeTruthy();
+      });
+
+      it('gws gmail users messages batchModify', async () => {
+        // Create two messages
+        const s1 = await h.fetch('/__fws/setup/gmail/message', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ from: 'batch1@test.com', subject: 'Batch 1', body: 'x', labels: ['INBOX'] }),
+        });
+        const s2 = await h.fetch('/__fws/setup/gmail/message', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ from: 'batch2@test.com', subject: 'Batch 2', body: 'x', labels: ['INBOX'] }),
+        });
+        const id1 = (await s1.json()).id;
+        const id2 = (await s2.json()).id;
+
+        const { exitCode } = await h.gws(`gmail users messages batchModify --params {"userId":"me"} --json {"ids":["${id1}","${id2}"],"addLabelIds":["STARRED"]}`);
+        expect(exitCode).toBe(0);
+
+        // Verify both starred
+        const g1 = await h.fetch(`/gmail/v1/users/me/messages/${id1}`);
+        expect((await g1.json()).labelIds).toContain('STARRED');
+        const g2 = await h.fetch(`/gmail/v1/users/me/messages/${id2}`);
+        expect((await g2.json()).labelIds).toContain('STARRED');
+      });
+
+      it('gws gmail users messages batchDelete', async () => {
+        const s1 = await h.fetch('/__fws/setup/gmail/message', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ from: 'batchdel@test.com', subject: 'Del 1', body: 'x' }),
+        });
+        const s2 = await h.fetch('/__fws/setup/gmail/message', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ from: 'batchdel@test.com', subject: 'Del 2', body: 'x' }),
+        });
+        const id1 = (await s1.json()).id;
+        const id2 = (await s2.json()).id;
+
+        const { exitCode } = await h.gws(`gmail users messages batchDelete --params {"userId":"me"} --json {"ids":["${id1}","${id2}"]}`);
+        expect(exitCode).toBe(0);
+
+        // Verify both deleted
+        expect((await h.fetch(`/gmail/v1/users/me/messages/${id1}`)).status).toBe(404);
+        expect((await h.fetch(`/gmail/v1/users/me/messages/${id2}`)).status).toBe(404);
+      });
     });
 
     describe('threads', () => {
@@ -203,6 +263,50 @@ describe('gws CLI validation', () => {
         const data = JSON.parse(stdout);
         expect(data.id).toBe('thread001');
         expect(data.messages.length).toBeGreaterThan(0);
+      });
+
+      it('gws gmail users threads modify', async () => {
+        const { stdout, exitCode } = await h.gws('gmail users threads modify --params {"userId":"me","id":"thread001"} --json {"addLabelIds":["STARRED"]}');
+        expect(exitCode).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.messages[0].labelIds).toContain('STARRED');
+      });
+
+      it('gws gmail users threads trash', async () => {
+        // Setup a thread to trash
+        await h.fetch('/__fws/setup/gmail/message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ from: 'thread-trash@test.com', subject: 'Thread trash', body: 'x' }),
+        });
+        const listRes = await h.fetch('/gmail/v1/users/me/messages?q=from:thread-trash@test.com');
+        const list = await listRes.json();
+        const threadId = list.messages[0].threadId;
+
+        const { stdout, exitCode } = await h.gws(`gmail users threads trash --params {"userId":"me","id":"${threadId}"}`);
+        expect(exitCode).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.messages[0].labelIds).toContain('TRASH');
+      });
+
+      it('gws gmail users threads untrash', async () => {
+        const listRes = await h.fetch('/gmail/v1/users/me/messages?q=from:thread-trash@test.com');
+        const list = await listRes.json();
+        const threadId = list.messages[0].threadId;
+
+        const { stdout, exitCode } = await h.gws(`gmail users threads untrash --params {"userId":"me","id":"${threadId}"}`);
+        expect(exitCode).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.messages[0].labelIds).not.toContain('TRASH');
+      });
+
+      it('gws gmail users threads delete', async () => {
+        const listRes = await h.fetch('/gmail/v1/users/me/messages?q=from:thread-trash@test.com');
+        const list = await listRes.json();
+        const threadId = list.messages[0].threadId;
+
+        const { exitCode } = await h.gws(`gmail users threads delete --params {"userId":"me","id":"${threadId}"}`);
+        expect(exitCode).toBe(0);
       });
     });
 

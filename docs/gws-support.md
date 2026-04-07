@@ -1,14 +1,14 @@
 # gws API Support Status
 
-fws currently mocks **35 REST endpoints + 5 helpers** across 3 of 17 gws services.
+fws currently mocks **41 REST endpoints + 5 helpers** across 3 of 17 gws services.
 
-All supported endpoints are validated through actual `gws` CLI commands in `test/gws-validation.test.ts` (51 tests).
+All supported endpoints are validated through actual `gws` CLI commands in `test/gws-validation.test.ts` (59 tests).
 
 ## Summary
 
 | Service | Status | Implemented | Total | Notes |
 |---------|--------|-------------|-------|-------|
-| Gmail | Partial | 22 + 5 helpers | 79 | Messages, labels, threads, profile, drafts, history, settings, +triage/+send/+reply/+forward |
+| Gmail | Partial | 28 + 5 helpers | 79 | Messages (incl. batch/import), labels, threads (CRUD), profile, drafts, history, settings, +triage/+send/+reply/+forward |
 | Calendar | Partial | 12 | 37 | Calendars, calendarList, events |
 | Drive | Partial | 7 | 57 | Files, about |
 | Sheets | Not yet | 0 | 17 | |
@@ -30,7 +30,7 @@ All supported endpoints are validated through actual `gws` CLI commands in `test
 
 ---
 
-## Gmail (22/79 + 5 helpers)
+## Gmail (28/79 + 5 helpers)
 
 ### Helpers
 
@@ -55,9 +55,9 @@ All supported endpoints are validated through actual `gws` CLI commands in `test
 | `gmail users messages trash` | gmail.users.messages.trash | ✅ gws-tested |
 | `gmail users messages untrash` | gmail.users.messages.untrash | ✅ gws-tested |
 | `gmail users messages modify` | gmail.users.messages.modify | ✅ gws-tested |
-| `gmail users messages import` | gmail.users.messages.import | — |
-| `gmail users messages batchDelete` | gmail.users.messages.batchDelete | — |
-| `gmail users messages batchModify` | gmail.users.messages.batchModify | — |
+| `gmail users messages import` | gmail.users.messages.import | ✅ gws-tested |
+| `gmail users messages batchDelete` | gmail.users.messages.batchDelete | ✅ gws-tested |
+| `gmail users messages batchModify` | gmail.users.messages.batchModify | ✅ gws-tested |
 
 ### Labels
 
@@ -68,7 +68,7 @@ All supported endpoints are validated through actual `gws` CLI commands in `test
 | `gmail users labels create` | gmail.users.labels.create | ✅ gws-tested |
 | `gmail users labels patch` | gmail.users.labels.patch | ✅ gws-tested |
 | `gmail users labels delete` | gmail.users.labels.delete | ✅ gws-tested |
-| `gmail users labels update` | gmail.users.labels.update | — |
+| `gmail users labels update` | gmail.users.labels.update | ✅ gws-tested |
 
 ### Threads
 
@@ -76,10 +76,10 @@ All supported endpoints are validated through actual `gws` CLI commands in `test
 |-------------|-----------|--------|
 | `gmail users threads list` | gmail.users.threads.list | ✅ gws-tested |
 | `gmail users threads get` | gmail.users.threads.get | ✅ gws-tested |
-| `gmail users threads delete` | gmail.users.threads.delete | — |
-| `gmail users threads trash` | gmail.users.threads.trash | — |
-| `gmail users threads untrash` | gmail.users.threads.untrash | — |
-| `gmail users threads modify` | gmail.users.threads.modify | — |
+| `gmail users threads delete` | gmail.users.threads.delete | ✅ gws-tested |
+| `gmail users threads trash` | gmail.users.threads.trash | ✅ gws-tested |
+| `gmail users threads untrash` | gmail.users.threads.untrash | ✅ gws-tested |
+| `gmail users threads modify` | gmail.users.threads.modify | ✅ gws-tested |
 
 ### Profile
 

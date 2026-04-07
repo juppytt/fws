@@ -245,6 +245,24 @@ export function gmailRoutes(): Router {
     res.json(label);
   });
 
+  // UPDATE label (PUT - full replace)
+  r.put(`${BASE}/labels/:id`, (req, res) => {
+    const store = getStore();
+    const label = store.gmail.labels[req.params.id];
+    if (!label) {
+      return res.status(404).json({
+        error: { code: 404, message: 'Requested entity was not found.', status: 'NOT_FOUND' },
+      });
+    }
+    if (label.type === 'system') {
+      return res.status(400).json({
+        error: { code: 400, message: 'Cannot modify system labels.', status: 'INVALID_ARGUMENT' },
+      });
+    }
+    store.gmail.labels[req.params.id] = { ...req.body, id: label.id, type: label.type };
+    res.json(store.gmail.labels[req.params.id]);
+  });
+
   // PATCH label
   r.patch(`${BASE}/labels/:id`, (req, res) => {
     const store = getStore();
@@ -320,11 +338,97 @@ export function gmailRoutes(): Router {
     });
   });
 
+  // IMPORT message (similar to insert)
+  r.post(`${BASE}/messages/import`, (req, res) => {
+    const store = getStore();
+    const id = generateId();
+    const threadId = req.body.threadId || generateId();
+    const labelIds = req.body.labelIds || ['INBOX'];
+
+    const msg: any = {
+      id,
+      threadId,
+      labelIds,
+      snippet: '',
+      historyId: String(store.gmail.nextHistoryId++),
+      internalDate: String(Date.now()),
+      sizeEstimate: 0,
+      payload: {
+        partId: '',
+        mimeType: 'text/plain',
+        filename: '',
+        headers: [] as Array<{ name: string; value: string }>,
+        body: { size: 0, data: '' },
+      },
+    };
+
+    if (req.body.raw) {
+      const rawText = Buffer.from(req.body.raw, 'base64url').toString('utf-8');
+      const parsed = parseRawEmail(rawText);
+      msg.payload.headers = parsed.headers;
+      msg.payload.body = { size: parsed.body.length, data: Buffer.from(parsed.body).toString('base64url') };
+      msg.snippet = parsed.body.slice(0, 100);
+      msg.sizeEstimate = parsed.body.length;
+    }
+
+    store.gmail.messages[id] = msg;
+    store.gmail.profile.messagesTotal++;
+    store.gmail.profile.threadsTotal++;
+
+    res.json({ id: msg.id, threadId: msg.threadId, labelIds: msg.labelIds });
+  });
+
+  // BATCH DELETE messages
+  r.post(`${BASE}/messages/batchDelete`, (req, res) => {
+    const store = getStore();
+    const ids: string[] = req.body.ids || [];
+    for (const id of ids) {
+      if (store.gmail.messages[id]) {
+        delete store.gmail.messages[id];
+        store.gmail.profile.messagesTotal--;
+      }
+    }
+    res.status(204).send();
+  });
+
+  // BATCH MODIFY messages
+  r.post(`${BASE}/messages/batchModify`, (req, res) => {
+    const store = getStore();
+    const ids: string[] = req.body.ids || [];
+    const { addLabelIds = [], removeLabelIds = [] } = req.body;
+    for (const id of ids) {
+      const msg = store.gmail.messages[id];
+      if (msg) {
+        msg.labelIds = msg.labelIds.filter((l: string) => !removeLabelIds.includes(l));
+        for (const label of addLabelIds) {
+          if (!msg.labelIds.includes(label)) msg.labelIds.push(label);
+        }
+      }
+    }
+    res.status(204).send();
+  });
+
   // === Attachments ===
 
   // GET attachment
   r.get(`${BASE}/messages/:messageId/attachments/:id`, (req, res) => {
-    // Return fake attachment data
+    const store = getStore();
+    const msg = store.gmail.messages[req.params.messageId];
+
+    // Try to find real attachment data from message parts
+    if (msg?.payload?.parts) {
+      for (const part of msg.payload.parts) {
+        if (part.body?.attachmentId === req.params.id && part.body?.data) {
+          return res.json({
+            attachmentId: req.params.id,
+            size: part.body.size,
+            data: part.body.data,
+          });
+        }
+      }
+    }
+
+    // Return fake attachment data as fallback
     const fakeData = Buffer.from('fake attachment content').toString('base64url');
     res.json({
       attachmentId: req.params.id,
@@ -523,6 +627,86 @@ export function gmailRoutes(): Router {
       return res.status(404).json({
         error: { code: 404, message: 'Requested entity was not found.', status: 'NOT_FOUND' },
       });
+    }
+    res.json({
+      id: req.params.id,
+      historyId: messages[messages.length - 1].historyId,
+      messages,
+    });
+  });
+
+  // DELETE thread
+  r.delete(`${BASE}/threads/:id`, (req, res) => {
+    const store = getStore();
+    const messages = Object.values(store.gmail.messages).filter(m => m.threadId === req.params.id);
+    if (messages.length === 0) {
+      return res.status(404).json({
+        error: { code: 404, message: 'Requested entity was not found.', status: 'NOT_FOUND' },
+      });
+    }
+    for (const msg of messages) {
+      delete store.gmail.messages[msg.id];
+      store.gmail.profile.messagesTotal--;
+    }
+    store.gmail.profile.threadsTotal--;
+    res.status(204).send();
+  });
+
+  // TRASH thread
+  r.post(`${BASE}/threads/:id/trash`, (req, res) => {
+    const store = getStore();
+    const messages = Object.values(store.gmail.messages).filter(m => m.threadId === req.params.id);
+    if (messages.length === 0) {
+      return res.status(404).json({
+        error: { code: 404, message: 'Requested entity was not found.', status: 'NOT_FOUND' },
+      });
+    }
+    for (const msg of messages) {
+      msg.labelIds = msg.labelIds.filter(l => l !== 'INBOX');
+      if (!msg.labelIds.includes('TRASH')) msg.labelIds.push('TRASH');
+    }
+    res.json({
+      id: req.params.id,
+      historyId: messages[messages.length - 1].historyId,
+      messages,
+    });
+  });
+
+  // UNTRASH thread
+  r.post(`${BASE}/threads/:id/untrash`, (req, res) => {
+    const store = getStore();
+    const messages = Object.values(store.gmail.messages).filter(m => m.threadId === req.params.id);
+    if (messages.length === 0) {
+      return res.status(404).json({
+        error: { code: 404, message: 'Requested entity was not found.', status: 'NOT_FOUND' },
+      });
+    }
+    for (const msg of messages) {
+      msg.labelIds = msg.labelIds.filter(l => l !== 'TRASH');
+      if (!msg.labelIds.includes('INBOX')) msg.labelIds.push('INBOX');
+    }
+    res.json({
+      id: req.params.id,
+      historyId: messages[messages.length - 1].historyId,
+      messages,
+    });
+  });
+
+  // MODIFY thread labels
+  r.post(`${BASE}/threads/:id/modify`, (req, res) => {
+    const store = getStore();
+    const messages = Object.values(store.gmail.messages).filter(m => m.threadId === req.params.id);
+    if (messages.length === 0) {
+      return res.status(404).json({
+        error: { code: 404, message: 'Requested entity was not found.', status: 'NOT_FOUND' },
+      });
+    }
+    const { addLabelIds = [], removeLabelIds = [] } = req.body;
+    for (const msg of messages) {
+      msg.labelIds = msg.labelIds.filter((l: string) => !removeLabelIds.includes(l));
+      for (const label of addLabelIds) {
+        if (!msg.labelIds.includes(label)) msg.labelIds.push(label);
+      }
     }
     res.json({
       id: req.params.id,
