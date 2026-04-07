@@ -215,6 +215,92 @@ describe('gws CLI validation', () => {
         expect(data.messages[0]).toHaveProperty('subject');
         expect(data.messages[0]).toHaveProperty('from');
       });
+
+      it('gws gmail +send', async () => {
+        const { stdout, exitCode } = await h.gwsProxy('gmail +send --to bob@example.com --subject "Test send" --body "Hello"');
+        expect(exitCode).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.id).toBeTruthy();
+        expect(data.labelIds).toContain('SENT');
+      });
+
+      it('gws gmail +reply', async () => {
+        const { stdout, exitCode } = await h.gwsProxy('gmail +reply --message-id msg001 --body "Got it"');
+        expect(exitCode).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.id).toBeTruthy();
+        expect(data.threadId).toBe('thread001');
+      });
+
+      it('gws gmail +reply-all', async () => {
+        const { stdout, exitCode } = await h.gwsProxy('gmail +reply-all --message-id msg001 --body "Sounds good"');
+        expect(exitCode).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.id).toBeTruthy();
+        expect(data.threadId).toBe('thread001');
+      });
+
+      it('gws gmail +forward', async () => {
+        const { stdout, exitCode } = await h.gwsProxy('gmail +forward --message-id msg001 --to carol@example.com --body "FYI"');
+        expect(exitCode).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.id).toBeTruthy();
+        expect(data.threadId).toBe('thread001');
+      });
+    });
+
+    describe('settings', () => {
+      it('gws gmail users settings sendAs list', async () => {
+        const { stdout, exitCode } = await h.gws('gmail users settings sendAs list --params {"userId":"me"}');
+        expect(exitCode).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.sendAs.length).toBeGreaterThan(0);
+        expect(data.sendAs[0].sendAsEmail).toBe('testuser@example.com');
+      });
+    });
+
+    describe('drafts', () => {
+      it('gws gmail users drafts list', async () => {
+        const { stdout, exitCode } = await h.gws('gmail users drafts list --params {"userId":"me"}');
+        expect(exitCode).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.drafts).toBeDefined();
+      });
+
+      let draftId: string;
+
+      it('gws gmail users drafts create', async () => {
+        const raw = Buffer.from(
+          'From: testuser@example.com\r\nTo: bob@example.com\r\nSubject: Draft Test\r\n\r\nDraft body'
+        ).toString('base64url');
+        const { stdout, exitCode } = await h.gws(`gmail users drafts create --params {"userId":"me"} --json {"message":{"raw":"${raw}"}}`);
+        expect(exitCode).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.id).toBeTruthy();
+        draftId = data.id;
+      });
+
+      it('gws gmail users drafts get', async () => {
+        const { stdout, exitCode } = await h.gws(`gmail users drafts get --params {"userId":"me","id":"${draftId}"}`);
+        expect(exitCode).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.id).toBe(draftId);
+      });
+
+      it('gws gmail users drafts delete', async () => {
+        const { exitCode } = await h.gws(`gmail users drafts delete --params {"userId":"me","id":"${draftId}"}`);
+        expect(exitCode).toBe(0);
+      });
+    });
+
+    describe('history', () => {
+      it('gws gmail users history list', async () => {
+        const { stdout, exitCode } = await h.gws('gmail users history list --params {"userId":"me","startHistoryId":"1000"}');
+        expect(exitCode).toBe(0);
+        const data = JSON.parse(stdout);
+        expect(data.history).toBeDefined();
+        expect(data.historyId).toBeDefined();
+      });
     });
   });
 

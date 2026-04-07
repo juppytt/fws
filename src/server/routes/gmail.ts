@@ -281,6 +281,216 @@ export function gmailRoutes(): Router {
     res.status(204).send();
   });
 
+  // === Settings ===
+
+  // GET sendAs
+  r.get(`${BASE}/settings/sendAs`, (_req, res) => {
+    const store = getStore();
+    const email = store.gmail.profile.emailAddress;
+    res.json({
+      sendAs: [
+        {
+          sendAsEmail: email,
+          displayName: 'Test User',
+          isDefault: true,
+          isPrimary: true,
+          treatAsAlias: false,
+          verificationStatus: 'accepted',
+        },
+      ],
+    });
+  });
+
+  // GET sendAs entry
+  r.get(`${BASE}/settings/sendAs/:sendAsEmail`, (req, res) => {
+    const store = getStore();
+    const email = store.gmail.profile.emailAddress;
+    if (req.params.sendAsEmail !== email) {
+      return res.status(404).json({
+        error: { code: 404, message: 'Requested entity was not found.', status: 'NOT_FOUND' },
+      });
+    }
+    res.json({
+      sendAsEmail: email,
+      displayName: 'Test User',
+      isDefault: true,
+      isPrimary: true,
+      treatAsAlias: false,
+      verificationStatus: 'accepted',
+    });
+  });
+
+  // === Attachments ===
+
+  // GET attachment
+  r.get(`${BASE}/messages/:messageId/attachments/:id`, (req, res) => {
+    // Return fake attachment data
+    const fakeData = Buffer.from('fake attachment content').toString('base64url');
+    res.json({
+      attachmentId: req.params.id,
+      size: 23,
+      data: fakeData,
+    });
+  });
+
+  // === Drafts ===
+
+  // LIST drafts
+  r.get(`${BASE}/drafts`, (_req, res) => {
+    const store = getStore();
+    const drafts = Object.values(store.gmail.messages).filter(m => m.labelIds.includes('DRAFT'));
+    res.json({
+      drafts: drafts.map(m => ({
+        id: m.id,
+        message: { id: m.id, threadId: m.threadId },
+      })),
+      resultSizeEstimate: drafts.length,
+    });
+  });
+
+  // GET draft
+  r.get(`${BASE}/drafts/:id`, (req, res) => {
+    const store = getStore();
+    const msg = store.gmail.messages[req.params.id];
+    if (!msg || !msg.labelIds.includes('DRAFT')) {
+      return res.status(404).json({
+        error: { code: 404, message: 'Requested entity was not found.', status: 'NOT_FOUND' },
+      });
+    }
+    res.json({
+      id: msg.id,
+      message: msg,
+    });
+  });
+
+  // CREATE draft
+  r.post(`${BASE}/drafts`, (req, res) => {
+    const store = getStore();
+    const id = generateId();
+    const threadId = req.body?.message?.threadId || generateId();
+    const labelIds = ['DRAFT'];
+
+    const msg: any = {
+      id,
+      threadId,
+      labelIds,
+      snippet: '',
+      historyId: String(store.gmail.nextHistoryId++),
+      internalDate: String(Date.now()),
+      sizeEstimate: 0,
+      payload: {
+        partId: '',
+        mimeType: 'text/plain',
+        filename: '',
+        headers: [] as Array<{ name: string; value: string }>,
+        body: { size: 0, data: '' },
+      },
+    };
+
+    // Handle multipart upload (message/rfc822) or JSON body
+    const raw = req.body?.raw || req.body?.message?.raw;
+    if (raw) {
+      const rawText = Buffer.from(raw, 'base64url').toString('utf-8');
+      const parsed = parseRawEmail(rawText);
+      msg.payload.headers = parsed.headers;
+      msg.payload.body = { size: parsed.body.length, data: Buffer.from(parsed.body).toString('base64url') };
+      msg.snippet = parsed.body.slice(0, 100);
+      msg.sizeEstimate = parsed.body.length;
+    }
+
+    store.gmail.messages[id] = msg;
+    store.gmail.profile.messagesTotal++;
+
+    res.json({
+      id,
+      message: { id, threadId, labelIds },
+    });
+  });
+
+  // UPDATE draft
+  r.put(`${BASE}/drafts/:id`, (req, res) => {
+    const store = getStore();
+    const msg = store.gmail.messages[req.params.id];
+    if (!msg || !msg.labelIds.includes('DRAFT')) {
+      return res.status(404).json({
+        error: { code: 404, message: 'Requested entity was not found.', status: 'NOT_FOUND' },
+      });
+    }
+
+    const raw = req.body?.raw || req.body?.message?.raw;
+    if (raw) {
+      const rawText = Buffer.from(raw, 'base64url').toString('utf-8');
+      const parsed = parseRawEmail(rawText);
+      msg.payload.headers = parsed.headers;
+      msg.payload.body = { size: parsed.body.length, data: Buffer.from(parsed.body).toString('base64url') };
+      msg.snippet = parsed.body.slice(0, 100);
+    }
+
+    res.json({
+      id: msg.id,
+      message: msg,
+    });
+  });
+
+  // DELETE draft
+  r.delete(`${BASE}/drafts/:id`, (req, res) => {
+    const store = getStore();
+    const msg = store.gmail.messages[req.params.id];
+    if (!msg || !msg.labelIds.includes('DRAFT')) {
+      return res.status(404).json({
+        error: { code: 404, message: 'Requested entity was not found.', status: 'NOT_FOUND' },
+      });
+    }
+    delete store.gmail.messages[req.params.id];
+    store.gmail.profile.messagesTotal--;
+    res.status(204).send();
+  });
+
+  // SEND draft
+  r.post(`${BASE}/drafts/send`, (req, res) => {
+    const store = getStore();
+    const draftId = req.body?.id;
+    const msg = draftId ? store.gmail.messages[draftId] : null;
+    if (!msg) {
+      return res.status(404).json({
+        error: { code: 404, message: 'Requested entity was not found.', status: 'NOT_FOUND' },
+      });
+    }
+    // Convert draft to sent message
+    msg.labelIds = msg.labelIds.filter(l => l !== 'DRAFT');
+    msg.labelIds.push('SENT');
+    res.json({ id: msg.id, threadId: msg.threadId, labelIds: msg.labelIds });
+  });
+
+  // === History ===
+
+  // LIST history
+  r.get(`${BASE}/history`, (req, res) => {
+    const store = getStore();
+    const startHistoryId = parseInt(req.query.startHistoryId as string) || 0;
+    const historyTypes = req.query.historyTypes as string | undefined;
+
+    // Build history from messages with historyId > startHistoryId
+    const messages = Object.values(store.gmail.messages)
+      .filter(m => parseInt(m.historyId) > startHistoryId);
+
+    const history = messages.map(m => {
+      const entry: any = {
+        id: m.historyId,
+        messages: [{ id: m.id, threadId: m.threadId }],
+      };
+      if (!historyTypes || historyTypes === 'messageAdded') {
+        entry.messagesAdded = [{ message: { id: m.id, threadId: m.threadId, labelIds: m.labelIds } }];
+      }
+      return entry;
+    });
+
+    res.json({
+      history,
+      historyId: String(store.gmail.nextHistoryId - 1),
+    });
+  });
+
   // LIST threads
   r.get(`${BASE}/threads`, (req, res) => {
     const store = getStore();

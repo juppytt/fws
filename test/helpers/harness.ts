@@ -52,14 +52,25 @@ export async function createTestHarness(): Promise<TestHarness> {
   const gwsPath = process.env.GWS_PATH || 'gws';
 
   function parseArgs(args: string): string[] {
-    // Split on whitespace but keep JSON objects (curly braces) as single args
+    // Split on whitespace but keep JSON objects and quoted strings as single args
     const result: string[] = [];
     let current = '';
     let braceDepth = 0;
+    let inQuote: string | null = null;
     for (const char of args) {
-      if (char === '{') braceDepth++;
-      if (char === '}') braceDepth--;
-      if (char === ' ' && braceDepth === 0) {
+      if (!inQuote && !braceDepth && (char === '"' || char === "'")) {
+        inQuote = char;
+        continue;
+      }
+      if (inQuote && char === inQuote) {
+        inQuote = null;
+        continue;
+      }
+      if (!inQuote) {
+        if (char === '{') braceDepth++;
+        if (char === '}') braceDepth--;
+      }
+      if (char === ' ' && braceDepth === 0 && !inQuote) {
         if (current) result.push(current);
         current = '';
       } else {

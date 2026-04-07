@@ -1,14 +1,14 @@
 # gws API Support Status
 
-fws currently mocks **35 REST endpoints + 1 helper** across 3 of 17 gws services.
+fws currently mocks **35 REST endpoints + 5 helpers** across 3 of 17 gws services.
 
-All supported endpoints are validated through actual `gws` CLI commands in `test/gws-validation.test.ts` (41 tests).
+All supported endpoints are validated through actual `gws` CLI commands in `test/gws-validation.test.ts` (51 tests).
 
 ## Summary
 
 | Service | Status | Implemented | Total | Notes |
 |---------|--------|-------------|-------|-------|
-| Gmail | Partial | 16 + 1 helper | 79 | Messages, labels, threads, profile, +triage |
+| Gmail | Partial | 22 + 5 helpers | 79 | Messages, labels, threads, profile, drafts, history, settings, +triage/+send/+reply/+forward |
 | Calendar | Partial | 12 | 37 | Calendars, calendarList, events |
 | Drive | Partial | 7 | 57 | Files, about |
 | Sheets | Not yet | 0 | 17 | |
@@ -30,18 +30,18 @@ All supported endpoints are validated through actual `gws` CLI commands in `test
 
 ---
 
-## Gmail (16/79 + 1 helper)
+## Gmail (22/79 + 5 helpers)
 
 ### Helpers
 
 | gws command | Status | Notes |
 |-------------|--------|-------|
 | `gmail +triage` | ✅ gws-tested | Requires MITM proxy (HTTPS_PROXY + SSL_CERT_FILE) |
-| `gmail +send` | — | Hardcodes googleapis.com URL |
-| `gmail +reply` | — | Hardcodes googleapis.com URL |
-| `gmail +reply-all` | — | Hardcodes googleapis.com URL |
-| `gmail +forward` | — | Hardcodes googleapis.com URL |
-| `gmail +watch` | — | Hardcodes googleapis.com URL |
+| `gmail +send` | ✅ gws-tested | Via MITM proxy |
+| `gmail +reply` | ✅ gws-tested | Via MITM proxy |
+| `gmail +reply-all` | ✅ gws-tested | Via MITM proxy |
+| `gmail +forward` | ✅ gws-tested | Via MITM proxy |
+| `gmail +watch` | — | Requires Pub/Sub (not mockable) |
 
 ### Messages
 
@@ -89,32 +89,36 @@ All supported endpoints are validated through actual `gws` CLI commands in `test
 | `gmail users watch` | gmail.users.watch | — |
 | `gmail users stop` | gmail.users.stop | — |
 
+### Settings
+
+| gws command | API method | Status |
+|-------------|-----------|--------|
+| `gmail users settings sendAs list` | gmail.users.settings.sendAs.list | ✅ gws-tested |
+| `gmail users settings sendAs get` | gmail.users.settings.sendAs.get | ✅ gws-tested |
+| Other settings endpoints | | — (26 endpoints) |
+
 ### Drafts
 
 | gws command | API method | Status |
 |-------------|-----------|--------|
-| `gmail users drafts list` | gmail.users.drafts.list | — |
-| `gmail users drafts get` | gmail.users.drafts.get | — |
-| `gmail users drafts create` | gmail.users.drafts.create | — |
-| `gmail users drafts update` | gmail.users.drafts.update | — |
-| `gmail users drafts delete` | gmail.users.drafts.delete | — |
-| `gmail users drafts send` | gmail.users.drafts.send | — |
+| `gmail users drafts list` | gmail.users.drafts.list | ✅ gws-tested |
+| `gmail users drafts get` | gmail.users.drafts.get | ✅ gws-tested |
+| `gmail users drafts create` | gmail.users.drafts.create | ✅ gws-tested |
+| `gmail users drafts update` | gmail.users.drafts.update | ✅ gws-tested |
+| `gmail users drafts delete` | gmail.users.drafts.delete | ✅ gws-tested |
+| `gmail users drafts send` | gmail.users.drafts.send | ✅ gws-tested |
 
 ### History
 
 | gws command | API method | Status |
 |-------------|-----------|--------|
-| `gmail users history list` | gmail.users.history.list | — |
+| `gmail users history list` | gmail.users.history.list | ✅ gws-tested |
 
 ### Attachments
 
 | gws command | API method | Status |
 |-------------|-----------|--------|
-| `gmail users messages attachments get` | gmail.users.messages.attachments.get | — |
-
-### Settings (all unsupported)
-
-Settings, sendAs, filters, forwarding addresses, delegates, CSE identities/keypairs — 32 endpoints, none implemented.
+| `gmail users messages attachments get` | gmail.users.messages.attachments.get | ✅ gws-tested |
 
 ---
 
