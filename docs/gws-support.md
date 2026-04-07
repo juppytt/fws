@@ -1,12 +1,14 @@
 # gws API Support Status
 
-fws currently mocks **35 out of 173 cached endpoints** across 3 of 17 gws services.
+fws currently mocks **35 REST endpoints + 1 helper** across 3 of 17 gws services.
+
+All supported endpoints are validated through actual `gws` CLI commands in `test/gws-validation.test.ts` (41 tests).
 
 ## Summary
 
 | Service | Status | Implemented | Total | Notes |
 |---------|--------|-------------|-------|-------|
-| Gmail | Partial | 16 | 79 | Messages, labels, threads, profile |
+| Gmail | Partial | 16 + 1 helper | 79 | Messages, labels, threads, profile, +triage |
 | Calendar | Partial | 12 | 37 | Calendars, calendarList, events |
 | Drive | Partial | 7 | 57 | Files, about |
 | Sheets | Not yet | 0 | 17 | |
@@ -24,22 +26,35 @@ fws currently mocks **35 out of 173 cached endpoints** across 3 of 17 gws servic
 | Model Armor | Not yet | — | — | |
 | Workflow | Not yet | — | — | |
 
+**Status legend:** ✅ Supported + gws-tested · ⚠️ Supported (HTTP only, not gws-tested) · — Not implemented
+
 ---
 
-## Gmail (16/79)
+## Gmail (16/79 + 1 helper)
+
+### Helpers
+
+| gws command | Status | Notes |
+|-------------|--------|-------|
+| `gmail +triage` | ✅ gws-tested | Requires MITM proxy (HTTPS_PROXY + SSL_CERT_FILE) |
+| `gmail +send` | — | Hardcodes googleapis.com URL |
+| `gmail +reply` | — | Hardcodes googleapis.com URL |
+| `gmail +reply-all` | — | Hardcodes googleapis.com URL |
+| `gmail +forward` | — | Hardcodes googleapis.com URL |
+| `gmail +watch` | — | Hardcodes googleapis.com URL |
 
 ### Messages
 
 | gws command | API method | Status |
 |-------------|-----------|--------|
-| `gmail users messages list` | gmail.users.messages.list | ✅ Supported |
-| `gmail users messages get` | gmail.users.messages.get | ✅ Supported |
-| `gmail users messages insert` | gmail.users.messages.insert | ✅ Supported |
-| `gmail users messages send` | gmail.users.messages.send | ✅ Supported |
-| `gmail users messages delete` | gmail.users.messages.delete | ✅ Supported |
-| `gmail users messages trash` | gmail.users.messages.trash | ✅ Supported |
-| `gmail users messages untrash` | gmail.users.messages.untrash | ✅ Supported |
-| `gmail users messages modify` | gmail.users.messages.modify | ✅ Supported |
+| `gmail users messages list` | gmail.users.messages.list | ✅ gws-tested |
+| `gmail users messages get` | gmail.users.messages.get | ✅ gws-tested |
+| `gmail users messages insert` | gmail.users.messages.insert | ✅ gws-tested |
+| `gmail users messages send` | gmail.users.messages.send | ✅ gws-tested |
+| `gmail users messages delete` | gmail.users.messages.delete | ✅ gws-tested |
+| `gmail users messages trash` | gmail.users.messages.trash | ✅ gws-tested |
+| `gmail users messages untrash` | gmail.users.messages.untrash | ✅ gws-tested |
+| `gmail users messages modify` | gmail.users.messages.modify | ✅ gws-tested |
 | `gmail users messages import` | gmail.users.messages.import | — |
 | `gmail users messages batchDelete` | gmail.users.messages.batchDelete | — |
 | `gmail users messages batchModify` | gmail.users.messages.batchModify | — |
@@ -48,19 +63,19 @@ fws currently mocks **35 out of 173 cached endpoints** across 3 of 17 gws servic
 
 | gws command | API method | Status |
 |-------------|-----------|--------|
-| `gmail users labels list` | gmail.users.labels.list | ✅ Supported |
-| `gmail users labels get` | gmail.users.labels.get | ✅ Supported |
-| `gmail users labels create` | gmail.users.labels.create | ✅ Supported |
-| `gmail users labels patch` | gmail.users.labels.patch | ✅ Supported |
-| `gmail users labels delete` | gmail.users.labels.delete | ✅ Supported |
+| `gmail users labels list` | gmail.users.labels.list | ✅ gws-tested |
+| `gmail users labels get` | gmail.users.labels.get | ✅ gws-tested |
+| `gmail users labels create` | gmail.users.labels.create | ✅ gws-tested |
+| `gmail users labels patch` | gmail.users.labels.patch | ✅ gws-tested |
+| `gmail users labels delete` | gmail.users.labels.delete | ✅ gws-tested |
 | `gmail users labels update` | gmail.users.labels.update | — |
 
 ### Threads
 
 | gws command | API method | Status |
 |-------------|-----------|--------|
-| `gmail users threads list` | gmail.users.threads.list | ✅ Supported |
-| `gmail users threads get` | gmail.users.threads.get | ✅ Supported |
+| `gmail users threads list` | gmail.users.threads.list | ✅ gws-tested |
+| `gmail users threads get` | gmail.users.threads.get | ✅ gws-tested |
 | `gmail users threads delete` | gmail.users.threads.delete | — |
 | `gmail users threads trash` | gmail.users.threads.trash | — |
 | `gmail users threads untrash` | gmail.users.threads.untrash | — |
@@ -70,7 +85,7 @@ fws currently mocks **35 out of 173 cached endpoints** across 3 of 17 gws servic
 
 | gws command | API method | Status |
 |-------------|-----------|--------|
-| `gmail users getProfile` | gmail.users.getProfile | ✅ Supported |
+| `gmail users getProfile` | gmail.users.getProfile | ✅ gws-tested |
 | `gmail users watch` | gmail.users.watch | — |
 | `gmail users stop` | gmail.users.stop | — |
 
@@ -109,8 +124,8 @@ Settings, sendAs, filters, forwarding addresses, delegates, CSE identities/keypa
 
 | gws command | API method | Status |
 |-------------|-----------|--------|
-| `calendar calendarList list` | calendar.calendarList.list | ✅ Supported |
-| `calendar calendarList get` | calendar.calendarList.get | ✅ Supported |
+| `calendar calendarList list` | calendar.calendarList.list | ✅ gws-tested |
+| `calendar calendarList get` | calendar.calendarList.get | ✅ gws-tested |
 | `calendar calendarList insert` | calendar.calendarList.insert | — |
 | `calendar calendarList patch` | calendar.calendarList.patch | — |
 | `calendar calendarList update` | calendar.calendarList.update | — |
@@ -121,10 +136,10 @@ Settings, sendAs, filters, forwarding addresses, delegates, CSE identities/keypa
 
 | gws command | API method | Status |
 |-------------|-----------|--------|
-| `calendar calendars insert` | calendar.calendars.insert | ✅ Supported |
-| `calendar calendars get` | calendar.calendars.get | ✅ Supported |
-| `calendar calendars patch` | calendar.calendars.patch | ✅ Supported |
-| `calendar calendars delete` | calendar.calendars.delete | ✅ Supported |
+| `calendar calendars insert` | calendar.calendars.insert | ✅ gws-tested |
+| `calendar calendars get` | calendar.calendars.get | ✅ gws-tested |
+| `calendar calendars patch` | calendar.calendars.patch | ✅ gws-tested |
+| `calendar calendars delete` | calendar.calendars.delete | ✅ gws-tested |
 | `calendar calendars update` | calendar.calendars.update | — |
 | `calendar calendars clear` | calendar.calendars.clear | — |
 
@@ -132,12 +147,12 @@ Settings, sendAs, filters, forwarding addresses, delegates, CSE identities/keypa
 
 | gws command | API method | Status |
 |-------------|-----------|--------|
-| `calendar events list` | calendar.events.list | ✅ Supported |
-| `calendar events get` | calendar.events.get | ✅ Supported |
-| `calendar events insert` | calendar.events.insert | ✅ Supported |
-| `calendar events patch` | calendar.events.patch | ✅ Supported |
-| `calendar events update` | calendar.events.update | ✅ Supported |
-| `calendar events delete` | calendar.events.delete | ✅ Supported |
+| `calendar events list` | calendar.events.list | ✅ gws-tested |
+| `calendar events get` | calendar.events.get | ✅ gws-tested |
+| `calendar events insert` | calendar.events.insert | ✅ gws-tested |
+| `calendar events patch` | calendar.events.patch | ✅ gws-tested |
+| `calendar events update` | calendar.events.update | ✅ gws-tested |
+| `calendar events delete` | calendar.events.delete | ✅ gws-tested |
 | `calendar events import` | calendar.events.import | — |
 | `calendar events instances` | calendar.events.instances | — |
 | `calendar events move` | calendar.events.move | — |
@@ -156,18 +171,18 @@ ACL (7 endpoints), channels, colors, freebusy, settings — not implemented.
 
 | gws command | API method | Status |
 |-------------|-----------|--------|
-| `drive about get` | drive.about.get | ✅ Supported |
+| `drive about get` | drive.about.get | ✅ gws-tested |
 
 ### Files
 
 | gws command | API method | Status |
 |-------------|-----------|--------|
-| `drive files list` | drive.files.list | ✅ Supported |
-| `drive files get` | drive.files.get | ✅ Supported |
-| `drive files create` | drive.files.create | ✅ Supported |
-| `drive files update` | drive.files.update | ✅ Supported |
-| `drive files delete` | drive.files.delete | ✅ Supported |
-| `drive files copy` | drive.files.copy | ✅ Supported |
+| `drive files list` | drive.files.list | ✅ gws-tested |
+| `drive files get` | drive.files.get | ✅ gws-tested |
+| `drive files create` | drive.files.create | ✅ gws-tested |
+| `drive files update` | drive.files.update | ✅ gws-tested |
+| `drive files delete` | drive.files.delete | ✅ gws-tested |
+| `drive files copy` | drive.files.copy | ✅ gws-tested |
 | `drive files export` | drive.files.export | — |
 | `drive files generateIds` | drive.files.generateIds | — |
 | `drive files download` | drive.files.download | — |
