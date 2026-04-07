@@ -1,0 +1,364 @@
+import { Router } from 'express';
+import { getStore } from '../../store/index.js';
+import { generateId } from '../../util/id.js';
+
+const BASE = '/gmail/v1/users/:userId';
+
+export function gmailRoutes(): Router {
+  const r = Router();
+
+  // GET profile
+  r.get(`${BASE}/profile`, (_req, res) => {
+    res.json(getStore().gmail.profile);
+  });
+
+  // LIST messages
+  r.get(`${BASE}/messages`, (req, res) => {
+    const store = getStore();
+    let messages = Object.values(store.gmail.messages);
+
+    // Filter by labelIds
+    const labelIds = req.query.labelIds;
+    if (labelIds) {
+      const labels = Array.isArray(labelIds) ? labelIds as string[] : [labelIds as string];
+      messages = messages.filter(m => labels.every(l => m.labelIds.includes(l)));
+    }
+
+    // Filter by q
+    const q = req.query.q as string | undefined;
+    if (q) {
+      messages = filterByQuery(messages, q);
+    }
+
+    // Sort by internalDate descending (newest first)
+    messages.sort((a, b) => Number(b.internalDate) - Number(a.internalDate));
+
+    const maxResults = Math.min(parseInt(req.query.maxResults as string) || 100, 500);
+    const result = messages.slice(0, maxResults);
+
+    res.json({
+      messages: result.map(m => ({ id: m.id, threadId: m.threadId })),
+      resultSizeEstimate: result.length,
+    });
+  });
+
+  // GET message
+  r.get(`${BASE}/messages/:id`, (req, res) => {
+    const store = getStore();
+    const msg = store.gmail.messages[req.params.id];
+    if (!msg) {
+      return res.status(404).json({
+        error: { code: 404, message: 'Requested entity was not found.', status: 'NOT_FOUND' },
+      });
+    }
+
+    const format = (req.query.format as string) || 'full';
+    if (format === 'minimal') {
+      return res.json({ id: msg.id, threadId: msg.threadId, labelIds: msg.labelIds, snippet: msg.snippet, historyId: msg.historyId, internalDate: msg.internalDate, sizeEstimate: msg.sizeEstimate });
+    }
+    if (format === 'metadata') {
+      return res.json({ id: msg.id, threadId: msg.threadId, labelIds: msg.labelIds, snippet: msg.snippet, historyId: msg.historyId, internalDate: msg.internalDate, sizeEstimate: msg.sizeEstimate, payload: { headers: msg.payload.headers } });
+    }
+    if (format === 'raw') {
+      return res.json({ ...msg });
+    }
+    // full
+    res.json(msg);
+  });
+
+  // SEND message
+  r.post(`${BASE}/messages/send`, (req, res) => {
+    const store = getStore();
+    const id = generateId();
+    const threadId = req.body.threadId || generateId();
+    const now = Date.now();
+
+    let headers: Array<{ name: string; value: string }> = [];
+    let bodyData = '';
+    let snippet = '';
+
+    if (req.body.raw) {
+      // Decode base64url raw RFC 2822
+      const rawText = Buffer.from(req.body.raw, 'base64url').toString('utf-8');
+      const parsed = parseRawEmail(rawText);
+      headers = parsed.headers;
+      bodyData = Buffer.from(parsed.body).toString('base64url');
+      snippet = parsed.body.slice(0, 100);
+    } else {
+      headers = [
+        { name: 'From', value: store.gmail.profile.emailAddress },
+        { name: 'To', value: 'recipient@example.com' },
+        { name: 'Subject', value: '(no subject)' },
+      ];
+    }
+
+    const msg = {
+      id,
+      threadId,
+      labelIds: ['SENT'],
+      snippet,
+      historyId: String(store.gmail.nextHistoryId++),
+      internalDate: String(now),
+      sizeEstimate: bodyData.length,
+      payload: {
+        partId: '',
+        mimeType: 'text/plain',
+        filename: '',
+        headers,
+        body: { size: bodyData.length, data: bodyData },
+      },
+    };
+
+    store.gmail.messages[id] = msg;
+    store.gmail.profile.messagesTotal++;
+    store.gmail.profile.threadsTotal++;
+
+    res.json({ id: msg.id, threadId: msg.threadId, labelIds: msg.labelIds });
+  });
+
+  // INSERT message
+  r.post(`${BASE}/messages`, (req, res) => {
+    const store = getStore();
+    const id = generateId();
+    const threadId = req.body.threadId || generateId();
+    const labelIds = req.body.labelIds || ['INBOX'];
+
+    const msg = {
+      id,
+      threadId,
+      labelIds,
+      snippet: '',
+      historyId: String(store.gmail.nextHistoryId++),
+      internalDate: String(Date.now()),
+      sizeEstimate: 0,
+      payload: {
+        partId: '',
+        mimeType: 'text/plain',
+        filename: '',
+        headers: [] as Array<{ name: string; value: string }>,
+        body: { size: 0, data: '' },
+      },
+    };
+
+    if (req.body.raw) {
+      const rawText = Buffer.from(req.body.raw, 'base64url').toString('utf-8');
+      const parsed = parseRawEmail(rawText);
+      msg.payload.headers = parsed.headers;
+      msg.payload.body = { size: parsed.body.length, data: Buffer.from(parsed.body).toString('base64url') };
+      msg.snippet = parsed.body.slice(0, 100);
+      msg.sizeEstimate = parsed.body.length;
+    }
+
+    store.gmail.messages[id] = msg;
+    store.gmail.profile.messagesTotal++;
+    store.gmail.profile.threadsTotal++;
+
+    res.json({ id: msg.id, threadId: msg.threadId, labelIds: msg.labelIds });
+  });
+
+  // DELETE message
+  r.delete(`${BASE}/messages/:id`, (req, res) => {
+    const store = getStore();
+    if (!store.gmail.messages[req.params.id]) {
+      return res.status(404).json({
+        error: { code: 404, message: 'Requested entity was not found.', status: 'NOT_FOUND' },
+      });
+    }
+    delete store.gmail.messages[req.params.id];
+    store.gmail.profile.messagesTotal--;
+    res.status(204).send();
+  });
+
+  // TRASH message
+  r.post(`${BASE}/messages/:id/trash`, (req, res) => {
+    const store = getStore();
+    const msg = store.gmail.messages[req.params.id];
+    if (!msg) {
+      return res.status(404).json({
+        error: { code: 404, message: 'Requested entity was not found.', status: 'NOT_FOUND' },
+      });
+    }
+    msg.labelIds = msg.labelIds.filter(l => l !== 'INBOX');
+    if (!msg.labelIds.includes('TRASH')) msg.labelIds.push('TRASH');
+    res.json(msg);
+  });
+
+  // UNTRASH message
+  r.post(`${BASE}/messages/:id/untrash`, (req, res) => {
+    const store = getStore();
+    const msg = store.gmail.messages[req.params.id];
+    if (!msg) {
+      return res.status(404).json({
+        error: { code: 404, message: 'Requested entity was not found.', status: 'NOT_FOUND' },
+      });
+    }
+    msg.labelIds = msg.labelIds.filter(l => l !== 'TRASH');
+    if (!msg.labelIds.includes('INBOX')) msg.labelIds.push('INBOX');
+    res.json(msg);
+  });
+
+  // MODIFY message labels
+  r.post(`${BASE}/messages/:id/modify`, (req, res) => {
+    const store = getStore();
+    const msg = store.gmail.messages[req.params.id];
+    if (!msg) {
+      return res.status(404).json({
+        error: { code: 404, message: 'Requested entity was not found.', status: 'NOT_FOUND' },
+      });
+    }
+    const { addLabelIds = [], removeLabelIds = [] } = req.body;
+    msg.labelIds = msg.labelIds.filter((l: string) => !removeLabelIds.includes(l));
+    for (const label of addLabelIds) {
+      if (!msg.labelIds.includes(label)) msg.labelIds.push(label);
+    }
+    res.json(msg);
+  });
+
+  // LIST labels
+  r.get(`${BASE}/labels`, (_req, res) => {
+    res.json({ labels: Object.values(getStore().gmail.labels) });
+  });
+
+  // GET label
+  r.get(`${BASE}/labels/:id`, (req, res) => {
+    const label = getStore().gmail.labels[req.params.id];
+    if (!label) {
+      return res.status(404).json({
+        error: { code: 404, message: 'Requested entity was not found.', status: 'NOT_FOUND' },
+      });
+    }
+    res.json(label);
+  });
+
+  // CREATE label
+  r.post(`${BASE}/labels`, (req, res) => {
+    const store = getStore();
+    const id = `Label_${generateId(8)}`;
+    const label = {
+      id,
+      name: req.body.name || 'Untitled',
+      type: 'user' as const,
+      messageListVisibility: req.body.messageListVisibility || 'show',
+      labelListVisibility: req.body.labelListVisibility || 'labelShow',
+    };
+    store.gmail.labels[id] = label;
+    res.json(label);
+  });
+
+  // PATCH label
+  r.patch(`${BASE}/labels/:id`, (req, res) => {
+    const store = getStore();
+    const label = store.gmail.labels[req.params.id];
+    if (!label) {
+      return res.status(404).json({
+        error: { code: 404, message: 'Requested entity was not found.', status: 'NOT_FOUND' },
+      });
+    }
+    if (label.type === 'system') {
+      return res.status(400).json({
+        error: { code: 400, message: 'Cannot modify system labels.', status: 'INVALID_ARGUMENT' },
+      });
+    }
+    Object.assign(label, req.body, { id: label.id, type: label.type });
+    res.json(label);
+  });
+
+  // DELETE label
+  r.delete(`${BASE}/labels/:id`, (req, res) => {
+    const store = getStore();
+    const label = store.gmail.labels[req.params.id];
+    if (!label) {
+      return res.status(404).json({
+        error: { code: 404, message: 'Requested entity was not found.', status: 'NOT_FOUND' },
+      });
+    }
+    if (label.type === 'system') {
+      return res.status(400).json({
+        error: { code: 400, message: 'Cannot delete system labels.', status: 'INVALID_ARGUMENT' },
+      });
+    }
+    delete store.gmail.labels[req.params.id];
+    res.status(204).send();
+  });
+
+  // LIST threads
+  r.get(`${BASE}/threads`, (req, res) => {
+    const store = getStore();
+    const messages = Object.values(store.gmail.messages);
+    const threadMap = new Map<string, typeof messages>();
+    for (const msg of messages) {
+      const arr = threadMap.get(msg.threadId) || [];
+      arr.push(msg);
+      threadMap.set(msg.threadId, arr);
+    }
+
+    const threads = Array.from(threadMap.entries()).map(([id, msgs]) => ({
+      id,
+      snippet: msgs[0].snippet,
+      historyId: msgs[msgs.length - 1].historyId,
+    }));
+
+    const maxResults = Math.min(parseInt(req.query.maxResults as string) || 100, 500);
+    res.json({
+      threads: threads.slice(0, maxResults),
+      resultSizeEstimate: threads.length,
+    });
+  });
+
+  // GET thread
+  r.get(`${BASE}/threads/:id`, (req, res) => {
+    const store = getStore();
+    const messages = Object.values(store.gmail.messages).filter(m => m.threadId === req.params.id);
+    if (messages.length === 0) {
+      return res.status(404).json({
+        error: { code: 404, message: 'Requested entity was not found.', status: 'NOT_FOUND' },
+      });
+    }
+    res.json({
+      id: req.params.id,
+      historyId: messages[messages.length - 1].historyId,
+      messages,
+    });
+  });
+
+  return r;
+}
+
+function getHeader(headers: Array<{ name: string; value: string }>, name: string): string {
+  return headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value || '';
+}
+
+function filterByQuery(messages: ReturnType<typeof Object.values<any>>, q: string): any[] {
+  const tokens = q.match(/(?:[^\s"]+|"[^"]*")/g) || [];
+  return messages.filter((msg: any) => {
+    const headers = msg.payload?.headers || [];
+    return tokens.every((token: string) => {
+      if (token.startsWith('from:')) return getHeader(headers, 'From').toLowerCase().includes(token.slice(5).toLowerCase());
+      if (token.startsWith('to:')) return getHeader(headers, 'To').toLowerCase().includes(token.slice(3).toLowerCase());
+      if (token.startsWith('subject:')) return getHeader(headers, 'Subject').toLowerCase().includes(token.slice(8).toLowerCase());
+      if (token === 'is:unread') return msg.labelIds.includes('UNREAD');
+      if (token === 'is:starred') return msg.labelIds.includes('STARRED');
+      if (token === 'in:inbox') return msg.labelIds.includes('INBOX');
+      if (token === 'in:sent') return msg.labelIds.includes('SENT');
+      if (token === 'in:trash') return msg.labelIds.includes('TRASH');
+      if (token.startsWith('label:')) return msg.labelIds.includes(token.slice(6));
+      // Free text search on snippet and subject
+      const text = (msg.snippet + ' ' + getHeader(headers, 'Subject')).toLowerCase();
+      return text.includes(token.toLowerCase().replace(/"/g, ''));
+    });
+  });
+}
+
+function parseRawEmail(raw: string): { headers: Array<{ name: string; value: string }>; body: string } {
+  const parts = raw.split(/\r?\n\r?\n/);
+  const headerSection = parts[0] || '';
+  const body = parts.slice(1).join('\n\n');
+  const headers: Array<{ name: string; value: string }> = [];
+  for (const line of headerSection.split(/\r?\n/)) {
+    const colonIdx = line.indexOf(':');
+    if (colonIdx > 0) {
+      headers.push({ name: line.slice(0, colonIdx).trim(), value: line.slice(colonIdx + 1).trim() });
+    }
+  }
+  return { headers, body };
+}

@@ -1,0 +1,27 @@
+{
+  "name": "fws",
+  "version": "0.1.0",
+  "description": "Fake Google Workspace — local mock server for gws CLI testing",
+  "type": "module",
+  "bin": {
+    "fws": "./dist/bin/fws.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx bin/fws.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "commander": "^13.0.0",
+    "express": "^5.1.0",
+    "nanoid": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.1.0"
+  }
+}
