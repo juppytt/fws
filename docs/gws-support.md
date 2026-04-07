@@ -1,0 +1,203 @@
+# gws API Support Status
+
+fws currently mocks **35 out of 173 cached endpoints** across 3 of 17 gws services.
+
+## Summary
+
+| Service | Status | Implemented | Total | Notes |
+|---------|--------|-------------|-------|-------|
+| Gmail | Partial | 16 | 79 | Messages, labels, threads, profile |
+| Calendar | Partial | 12 | 37 | Calendars, calendarList, events |
+| Drive | Partial | 7 | 57 | Files, about |
+| Sheets | Not yet | 0 | 17 | |
+| Tasks | Not yet | 0 | 14 | |
+| People | Not yet | 0 | 24 | |
+| Events | Not yet | 0 | 15 | |
+| Docs | Not yet | — | — | |
+| Slides | Not yet | — | — | |
+| Chat | Not yet | — | — | |
+| Classroom | Not yet | — | — | |
+| Forms | Not yet | — | — | |
+| Keep | Not yet | — | — | |
+| Meet | Not yet | — | — | |
+| Admin Reports | Not yet | — | — | |
+| Model Armor | Not yet | — | — | |
+| Workflow | Not yet | — | — | |
+
+---
+
+## Gmail (16/79)
+
+### Messages
+
+| gws command | API method | Status |
+|-------------|-----------|--------|
+| `gmail users messages list` | gmail.users.messages.list | ✅ Supported |
+| `gmail users messages get` | gmail.users.messages.get | ✅ Supported |
+| `gmail users messages insert` | gmail.users.messages.insert | ✅ Supported |
+| `gmail users messages send` | gmail.users.messages.send | ✅ Supported |
+| `gmail users messages delete` | gmail.users.messages.delete | ✅ Supported |
+| `gmail users messages trash` | gmail.users.messages.trash | ✅ Supported |
+| `gmail users messages untrash` | gmail.users.messages.untrash | ✅ Supported |
+| `gmail users messages modify` | gmail.users.messages.modify | ✅ Supported |
+| `gmail users messages import` | gmail.users.messages.import | — |
+| `gmail users messages batchDelete` | gmail.users.messages.batchDelete | — |
+| `gmail users messages batchModify` | gmail.users.messages.batchModify | — |
+
+### Labels
+
+| gws command | API method | Status |
+|-------------|-----------|--------|
+| `gmail users labels list` | gmail.users.labels.list | ✅ Supported |
+| `gmail users labels get` | gmail.users.labels.get | ✅ Supported |
+| `gmail users labels create` | gmail.users.labels.create | ✅ Supported |
+| `gmail users labels patch` | gmail.users.labels.patch | ✅ Supported |
+| `gmail users labels delete` | gmail.users.labels.delete | ✅ Supported |
+| `gmail users labels update` | gmail.users.labels.update | — |
+
+### Threads
+
+| gws command | API method | Status |
+|-------------|-----------|--------|
+| `gmail users threads list` | gmail.users.threads.list | ✅ Supported |
+| `gmail users threads get` | gmail.users.threads.get | ✅ Supported |
+| `gmail users threads delete` | gmail.users.threads.delete | — |
+| `gmail users threads trash` | gmail.users.threads.trash | — |
+| `gmail users threads untrash` | gmail.users.threads.untrash | — |
+| `gmail users threads modify` | gmail.users.threads.modify | — |
+
+### Profile
+
+| gws command | API method | Status |
+|-------------|-----------|--------|
+| `gmail users getProfile` | gmail.users.getProfile | ✅ Supported |
+| `gmail users watch` | gmail.users.watch | — |
+| `gmail users stop` | gmail.users.stop | — |
+
+### Drafts
+
+| gws command | API method | Status |
+|-------------|-----------|--------|
+| `gmail users drafts list` | gmail.users.drafts.list | — |
+| `gmail users drafts get` | gmail.users.drafts.get | — |
+| `gmail users drafts create` | gmail.users.drafts.create | — |
+| `gmail users drafts update` | gmail.users.drafts.update | — |
+| `gmail users drafts delete` | gmail.users.drafts.delete | — |
+| `gmail users drafts send` | gmail.users.drafts.send | — |
+
+### History
+
+| gws command | API method | Status |
+|-------------|-----------|--------|
+| `gmail users history list` | gmail.users.history.list | — |
+
+### Attachments
+
+| gws command | API method | Status |
+|-------------|-----------|--------|
+| `gmail users messages attachments get` | gmail.users.messages.attachments.get | — |
+
+### Settings (all unsupported)
+
+Settings, sendAs, filters, forwarding addresses, delegates, CSE identities/keypairs — 32 endpoints, none implemented.
+
+---
+
+## Calendar (12/37)
+
+### Calendar List
+
+| gws command | API method | Status |
+|-------------|-----------|--------|
+| `calendar calendarList list` | calendar.calendarList.list | ✅ Supported |
+| `calendar calendarList get` | calendar.calendarList.get | ✅ Supported |
+| `calendar calendarList insert` | calendar.calendarList.insert | — |
+| `calendar calendarList patch` | calendar.calendarList.patch | — |
+| `calendar calendarList update` | calendar.calendarList.update | — |
+| `calendar calendarList delete` | calendar.calendarList.delete | — |
+| `calendar calendarList watch` | calendar.calendarList.watch | — |
+
+### Calendars
+
+| gws command | API method | Status |
+|-------------|-----------|--------|
+| `calendar calendars insert` | calendar.calendars.insert | ✅ Supported |
+| `calendar calendars get` | calendar.calendars.get | ✅ Supported |
+| `calendar calendars patch` | calendar.calendars.patch | ✅ Supported |
+| `calendar calendars delete` | calendar.calendars.delete | ✅ Supported |
+| `calendar calendars update` | calendar.calendars.update | — |
+| `calendar calendars clear` | calendar.calendars.clear | — |
+
+### Events
+
+| gws command | API method | Status |
+|-------------|-----------|--------|
+| `calendar events list` | calendar.events.list | ✅ Supported |
+| `calendar events get` | calendar.events.get | ✅ Supported |
+| `calendar events insert` | calendar.events.insert | ✅ Supported |
+| `calendar events patch` | calendar.events.patch | ✅ Supported |
+| `calendar events update` | calendar.events.update | ✅ Supported |
+| `calendar events delete` | calendar.events.delete | ✅ Supported |
+| `calendar events import` | calendar.events.import | — |
+| `calendar events instances` | calendar.events.instances | — |
+| `calendar events move` | calendar.events.move | — |
+| `calendar events quickAdd` | calendar.events.quickAdd | — |
+| `calendar events watch` | calendar.events.watch | — |
+
+### Other (all unsupported)
+
+ACL (7 endpoints), channels, colors, freebusy, settings — not implemented.
+
+---
+
+## Drive (7/57)
+
+### About
+
+| gws command | API method | Status |
+|-------------|-----------|--------|
+| `drive about get` | drive.about.get | ✅ Supported |
+
+### Files
+
+| gws command | API method | Status |
+|-------------|-----------|--------|
+| `drive files list` | drive.files.list | ✅ Supported |
+| `drive files get` | drive.files.get | ✅ Supported |
+| `drive files create` | drive.files.create | ✅ Supported |
+| `drive files update` | drive.files.update | ✅ Supported |
+| `drive files delete` | drive.files.delete | ✅ Supported |
+| `drive files copy` | drive.files.copy | ✅ Supported |
+| `drive files export` | drive.files.export | — |
+| `drive files generateIds` | drive.files.generateIds | — |
+| `drive files download` | drive.files.download | — |
+| `drive files emptyTrash` | drive.files.emptyTrash | — |
+| `drive files watch` | drive.files.watch | — |
+| `drive files modifyLabels` | drive.files.modifyLabels | — |
+| `drive files listLabels` | drive.files.listLabels | — |
+
+### Other (all unsupported)
+
+Drives (8), permissions (5), comments (5), replies (5), revisions (4), changes (3), channels, apps, teamdrives, approvals, accessproposals, operations — not implemented.
+
+---
+
+## Sheets (0/17) — not yet supported
+
+Spreadsheets CRUD, values read/write/append/clear, batch operations, developer metadata, sheet copying.
+
+## Tasks (0/14) — not yet supported
+
+Task lists CRUD, tasks CRUD/move/clear.
+
+## People (0/24) — not yet supported
+
+Contacts CRUD, contact groups, directory people, other contacts.
+
+## Events (0/15) — not yet supported
+
+Workspace event subscriptions, push notifications.
+
+## Other services — not yet supported
+
+Docs, Slides, Chat, Classroom, Forms, Keep, Meet, Admin Reports, Model Armor, Workflow — no discovery cache present, not yet implemented.
