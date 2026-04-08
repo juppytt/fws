@@ -6,17 +6,24 @@ Built with [Claude Code](https://claude.ai/code).
 
 ## How it works
 
-`gws` sends API requests to the `rootUrl` defined in its discovery cache (`~/.config/gws/cache/*.json`). fws rewrites these URLs to `http://localhost:4100/` and sets `GOOGLE_WORKSPACE_CLI_TOKEN=fake` to bypass auth.
+fws runs a local HTTP mock server (port 4100) and a MITM CONNECT proxy (port 4101) that intercepts HTTPS traffic to `*.googleapis.com` and `api.github.com`, forwarding it to the mock server.
 
-For helper commands (`+triage`, `+send`, `+reply`, etc.) that hardcode `googleapis.com` URLs, fws runs a MITM CONNECT proxy on port 4101 that intercepts HTTPS traffic and forwards it to the local mock server.
+For `gws`: discovery cache URLs are rewritten to localhost, and `GOOGLE_WORKSPACE_CLI_TOKEN=fake` bypasses auth.
+For `gh`: `HTTPS_PROXY` routes traffic through the MITM proxy, and `GH_TOKEN=fake` bypasses auth.
 
 All data lives **in memory**. When the server stops, everything is lost unless you save a snapshot first. Use `fws snapshot save` to persist state.
 
 ## Install
 
 ```bash
-npm install
-npm link     # makes `fws` command available globally
+npm install -g @juppytt/fws
+```
+
+Or from source:
+
+```bash
+git clone https://github.com/juppytt/fws.git && cd fws
+npm install && npm link
 ```
 
 ## Quick Start
@@ -30,21 +37,23 @@ export GOOGLE_WORKSPACE_CLI_CONFIG_DIR=~/.local/share/fws/config
 export GOOGLE_WORKSPACE_CLI_TOKEN=fake
 export HTTPS_PROXY=http://localhost:4101
 export SSL_CERT_FILE=~/.local/share/fws/certs/ca.crt
+export GH_TOKEN=fake
 
-# Try some commands
-gws gmail users messages list --params '{"userId":"me"}'
+# Try gws commands
 gws gmail +triage
 gws calendar events list --params '{"calendarId":"primary"}'
 gws drive files list
-gws tasks tasklists list
-gws sheets spreadsheets get --params '{"spreadsheetId":"sheet001"}'
-gws people people connections list --params '{"resourceName":"people/me","personFields":"names"}'
+
+# Try gh commands
+gh issue list                                      # requires GH_REPO=testuser/my-project
+gh api /repos/testuser/my-project/issues
+gh api /user
 
 # When done
 fws server stop
 ```
 
-The server starts with sample seed data (5 emails, 4 calendar events, 5 drive files, 2 tasks, 1 spreadsheet, 2 contacts) so you can try gws commands immediately.
+The server starts with sample seed data so you can try commands immediately.
 
 ## Usage
 
@@ -101,12 +110,14 @@ Snapshots are stored in `~/.local/share/fws/snapshots/` (override with `FWS_DATA
 | Tasks    | 1 task list with 2 tasks (1 pending, 1 completed) |
 | Sheets   | 1 spreadsheet ("Budget 2026") |
 | People   | 2 contacts (Alice, Bob), 1 contact group |
+| GitHub   | 1 repo (testuser/my-project), 2 issues, 1 PR, 1 comment |
 
 ## API support
 
-Gmail (28/79 + 5 helpers), Calendar (21/37), Drive (18/57), Tasks (14/14), Sheets (7/17), People (16/24). 135 tests, 89 gws CLI validated.
+**Google Workspace**: Gmail (28/79 + 5 helpers), Calendar (21/37), Drive (18/57), Tasks (14/14), Sheets (7/17), People (16/24).
+**GitHub**: REST (repos, issues, PRs, comments, labels, search) + GraphQL (issue/PR list and view).
 
-See [docs/gws-support.md](docs/gws-support.md) for the full endpoint-by-endpoint table.
+See [docs/gws-support.md](docs/gws-support.md) for endpoint tables.
 
 ## Documentation
 
