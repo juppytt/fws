@@ -1,10 +1,10 @@
 {
-  "name": "fws",
-  "version": "0.1.0",
+  "name": "@juppytt/fws",
+  "version": "0.1.2",
   "description": "Fake Google Workspace — local mock server for gws CLI testing",
   "type": "module",
   "bin": {
-    "fws": "./bin/fws-cli.sh"
+    "fws": "bin/fws-cli.js"
   },
   "scripts": {
     "start": "tsx bin/fws.ts server start",
