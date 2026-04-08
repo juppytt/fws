@@ -147,16 +147,20 @@ serverCmd
       const caPath = serverInfo.caPath || path.join(getDataDir(), 'certs', 'ca.crt');
 
       console.log(`fws server started on port ${port} (pid ${child.pid})\n`);
-      console.log(`To use with gws:\n`);
+      console.log(`Run this to configure your shell:\n`);
+      console.log(`  eval $(fws server env)\n`);
+      console.log(`Or set manually:\n`);
       console.log(`  export GOOGLE_WORKSPACE_CLI_CONFIG_DIR=${configDir}`);
       console.log(`  export GOOGLE_WORKSPACE_CLI_TOKEN=fake`);
       console.log(`  export HTTPS_PROXY=http://localhost:${proxyPort}`);
-      console.log(`  export SSL_CERT_FILE=${caPath}\n`);
+      console.log(`  export SSL_CERT_FILE=${caPath}`);
+      console.log(`  export GH_TOKEN=fake`);
+      console.log(`  export GH_REPO=testuser/my-project\n`);
       console.log(`Then try:\n`);
-      console.log(`  gws gmail users messages list --params '{"userId":"me"}'`);
       console.log(`  gws gmail +triage`);
-      console.log(`  gws calendar events list --params '{"calendarId":"primary"}'`);
-      console.log(`  gws drive files list\n`);
+      console.log(`  gws drive files list`);
+      console.log(`  gh issue list`);
+      console.log(`  gh api /user\n`);
       console.log(`Stop with: fws server stop`);
     } else {
       const log = await fs.readFile(logFile, 'utf-8').catch(() => '');
@@ -178,6 +182,28 @@ serverCmd
       console.log(`Stopped fws server (pid ${info.pid})`);
     } catch {
       console.log('No running server found');
+    }
+  });
+
+serverCmd
+  .command('env')
+  .description('Print export statements for shell (use with eval)')
+  .action(async () => {
+    try {
+      const info = JSON.parse(await fs.readFile(getServerInfoPath(), 'utf-8'));
+      const configDir = path.join(getDataDir(), 'config');
+      const caPath = info.caPath || path.join(getDataDir(), 'certs', 'ca.crt');
+      const proxyPort = info.proxyPort || info.port + 1;
+
+      console.log(`export GOOGLE_WORKSPACE_CLI_CONFIG_DIR=${configDir}`);
+      console.log(`export GOOGLE_WORKSPACE_CLI_TOKEN=fake`);
+      console.log(`export HTTPS_PROXY=http://localhost:${proxyPort}`);
+      console.log(`export SSL_CERT_FILE=${caPath}`);
+      console.log(`export GH_TOKEN=fake`);
+      console.log(`export GH_REPO=testuser/my-project`);
+    } catch {
+      console.error('No running server found. Start with: fws server start');
+      process.exit(1);
     }
   });
 
