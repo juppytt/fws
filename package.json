@@ -1,6 +1,6 @@
 {
   "name": "@juppytt/fws",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Fake Web Services — local mock server for testing CLI tools and agents without real credentials",
   "type": "module",
   "bin": {
