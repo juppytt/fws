@@ -122,7 +122,8 @@ See [docs/gws-support.md](docs/gws-support.md) for endpoint tables.
 ## Documentation
 
 - [docs/cli-reference.md](docs/cli-reference.md) — Full CLI reference with all flags, HTTP API equivalents, and examples
-- [docs/gws-support.md](docs/gws-support.md) — Endpoint-by-endpoint support table
+- [docs/gws-support.md](docs/gws-support.md) — Google Workspace endpoint support table
+- [docs/gh-support.md](docs/gh-support.md) — GitHub endpoint support table
 
 ## Structure
 
