@@ -1,4 +1,4 @@
-import type { FwsStore, GmailLabel, GmailMessage, CalendarEvent, DriveFile, TaskList, Task, Spreadsheet, Person, ContactGroup } from './types.js';
+import type { FwsStore, GmailLabel, GmailMessage, CalendarEvent, DriveFile, TaskList, Task, Spreadsheet, Person, ContactGroup, GitHubStore } from './types.js';
 import { generateEtag } from '../util/id.js';
 
 const SYSTEM_LABELS: GmailLabel[] = [
@@ -305,6 +305,103 @@ export function createSeedStore(): FwsStore {
           memberCount: 2,
           memberResourceNames: ['people/c001', 'people/c002'],
         },
+      },
+    },
+    github: {
+      user: {
+        login: 'testuser',
+        id: 1,
+        name: 'Test User',
+        email: 'testuser@example.com',
+        avatar_url: 'https://github.com/testuser.png',
+        html_url: 'https://github.com/testuser',
+        type: 'User',
+      },
+      repos: {
+        'testuser/my-project': {
+          id: 101,
+          name: 'my-project',
+          full_name: 'testuser/my-project',
+          owner: { login: 'testuser', id: 1, type: 'User' },
+          private: false,
+          html_url: 'https://github.com/testuser/my-project',
+          description: 'A sample project for testing',
+          fork: false,
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-04-07T00:00:00Z',
+          pushed_at: '2026-04-07T00:00:00Z',
+          default_branch: 'main',
+          open_issues_count: 2,
+          language: 'TypeScript',
+          topics: ['testing', 'mock'],
+        },
+      },
+      issues: {
+        'testuser/my-project': {
+          1: {
+            id: 1001,
+            number: 1,
+            title: 'Fix login bug',
+            body: 'Users are getting 401 errors when trying to log in with SSO.',
+            state: 'open',
+            labels: [{ id: 1, name: 'bug', color: 'd73a4a' }],
+            assignees: [{ login: 'testuser', id: 1 }],
+            user: { login: 'alice', id: 2 },
+            created_at: '2026-04-05T10:00:00Z',
+            updated_at: '2026-04-06T14:00:00Z',
+            closed_at: null,
+            html_url: 'https://github.com/testuser/my-project/issues/1',
+            comments: 1,
+          },
+          2: {
+            id: 1002,
+            number: 2,
+            title: 'Add dark mode support',
+            body: 'It would be great to have a dark mode option.',
+            state: 'open',
+            labels: [{ id: 2, name: 'enhancement', color: 'a2eeef' }],
+            assignees: [],
+            user: { login: 'bob', id: 3 },
+            created_at: '2026-04-06T09:00:00Z',
+            updated_at: '2026-04-06T09:00:00Z',
+            closed_at: null,
+            html_url: 'https://github.com/testuser/my-project/issues/2',
+            comments: 0,
+          },
+        },
+      },
+      pulls: {
+        'testuser/my-project': {
+          3: {
+            id: 2001,
+            number: 3,
+            title: 'Fix SSO login flow',
+            body: 'Fixes #1. Updated the auth middleware to handle SSO tokens correctly.',
+            state: 'open',
+            head: { ref: 'fix/sso-login', sha: 'abc1234', label: 'testuser:fix/sso-login' },
+            base: { ref: 'main', sha: 'def5678', label: 'testuser:main' },
+            user: { login: 'testuser', id: 1 },
+            created_at: '2026-04-07T08:00:00Z',
+            updated_at: '2026-04-07T08:00:00Z',
+            merged_at: null,
+            closed_at: null,
+            html_url: 'https://github.com/testuser/my-project/pull/3',
+            mergeable: true,
+            draft: false,
+          },
+        },
+      },
+      comments: {
+        'testuser/my-project/issues/1': [
+          {
+            id: 3001,
+            body: 'I can reproduce this. Happens with Google SSO specifically.',
+            user: { login: 'bob', id: 3 },
+            created_at: '2026-04-06T14:00:00Z',
+            updated_at: '2026-04-06T14:00:00Z',
+            html_url: 'https://github.com/testuser/my-project/issues/1#issuecomment-3001',
+          },
+        ],
       },
     },
   };

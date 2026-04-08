@@ -7,6 +7,7 @@ export interface FwsStore {
   tasks: TasksStore;
   sheets: SheetsStore;
   people: PeopleStore;
+  github: GitHubStore;
 }
 
 // === Gmail ===
@@ -222,4 +223,86 @@ export interface ContactGroup {
   groupType: 'USER_CONTACT_GROUP' | 'SYSTEM_CONTACT_GROUP';
   memberCount: number;
   memberResourceNames?: string[];
+}
+
+// === GitHub ===
+
+export interface GitHubStore {
+  user: GitHubUser;
+  repos: Record<string, GitHubRepo>;
+  issues: Record<string, Record<number, GitHubIssue>>; // "owner/repo" -> number -> issue
+  pulls: Record<string, Record<number, GitHubPull>>;
+  comments: Record<string, GitHubComment[]>; // "owner/repo/issues/number" -> comments
+}
+
+export interface GitHubUser {
+  login: string;
+  id: number;
+  name: string;
+  email: string;
+  avatar_url: string;
+  html_url: string;
+  type: 'User';
+}
+
+export interface GitHubRepo {
+  id: number;
+  name: string;
+  full_name: string;
+  owner: { login: string; id: number; type: string };
+  private: boolean;
+  html_url: string;
+  description: string | null;
+  fork: boolean;
+  created_at: string;
+  updated_at: string;
+  pushed_at: string;
+  default_branch: string;
+  open_issues_count: number;
+  language: string | null;
+  topics: string[];
+}
+
+export interface GitHubIssue {
+  id: number;
+  number: number;
+  title: string;
+  body: string | null;
+  state: 'open' | 'closed';
+  labels: Array<{ id: number; name: string; color: string }>;
+  assignees: Array<{ login: string; id: number }>;
+  user: { login: string; id: number };
+  created_at: string;
+  updated_at: string;
+  closed_at: string | null;
+  html_url: string;
+  comments: number;
+  pull_request?: { url: string };
+}
+
+export interface GitHubPull {
+  id: number;
+  number: number;
+  title: string;
+  body: string | null;
+  state: 'open' | 'closed' | 'merged';
+  head: { ref: string; sha: string; label: string };
+  base: { ref: string; sha: string; label: string };
+  user: { login: string; id: number };
+  created_at: string;
+  updated_at: string;
+  merged_at: string | null;
+  closed_at: string | null;
+  html_url: string;
+  mergeable: boolean | null;
+  draft: boolean;
+}
+
+export interface GitHubComment {
+  id: number;
+  body: string;
+  user: { login: string; id: number };
+  created_at: string;
+  updated_at: string;
+  html_url: string;
 }

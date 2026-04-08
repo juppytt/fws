@@ -5,7 +5,8 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-const GOOGLEAPIS_HOSTS = [
+const INTERCEPTED_HOSTS = [
+  // Google Workspace
   'gmail.googleapis.com',
   'www.googleapis.com',
   'tasks.googleapis.com',
@@ -20,6 +21,8 @@ const GOOGLEAPIS_HOSTS = [
   'people.googleapis.com',
   'sheets.googleapis.com',
   'admin.googleapis.com',
+  // GitHub
+  'api.github.com',
 ];
 
 interface CertPair {
@@ -149,7 +152,7 @@ export function startMitmProxy(mockPort: number, proxyPort: number): http.Server
     const port = parseInt(portStr) || 443;
 
     // Only intercept googleapis.com hosts
-    if (!GOOGLEAPIS_HOSTS.some(h => hostname === h || hostname.endsWith('.' + h))) {
+    if (!INTERCEPTED_HOSTS.some(h => hostname === h || hostname.endsWith('.' + h))) {
       // Pass through to real server
       const serverSocket = net.connect(port, hostname, () => {
         clientSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n');

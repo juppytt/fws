@@ -5,6 +5,7 @@ import { driveRoutes } from './routes/drive.js';
 import { tasksRoutes } from './routes/tasks.js';
 import { sheetsRoutes } from './routes/sheets.js';
 import { peopleRoutes } from './routes/people.js';
+import { githubRoutes } from './routes/github.js';
 import { controlRoutes } from './routes/control.js';
 import { errorHandler } from './middleware.js';
 
@@ -19,6 +20,7 @@ export function createApp(): express.Express {
   app.use(tasksRoutes());
   app.use(sheetsRoutes());
   app.use(peopleRoutes());
+  app.use(githubRoutes());
 
   app.use(errorHandler);
 
