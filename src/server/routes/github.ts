@@ -17,7 +17,77 @@ export function githubRoutes(): Router {
     const variables = req.body.variables || {};
 
     // Detect what the query is asking for and return appropriate data
-    if (query.includes('issues') || query.includes('Issue')) {
+
+    // Single issue/PR by number (gh issue view, gh pr view)
+    if (query.includes('issueOrPullRequest')) {
+      const repoOwner = variables.owner || store.github.user.login;
+      const repoName = variables.repo || Object.values(store.github.repos)[0]?.name || '';
+      const key = `${repoOwner}/${repoName}`;
+      const num = variables.number || 0;
+
+      if (!num) {
+        return res.json({ data: { repository: { issue: null } } });
+      }
+
+      const issue = store.github.issues[key]?.[num];
+      const pull = store.github.pulls[key]?.[num];
+      const item = issue || pull;
+
+      if (item) {
+        const isIssue = !!issue;
+        const commentsKey = `${key}/issues/${num}`;
+        const comments = store.github.comments[commentsKey] || [];
+
+        const node = {
+                __typename: isIssue ? 'Issue' : 'PullRequest',
+                number: item.number,
+                url: (item as any).html_url,
+                state: (item as any).state === 'merged' ? 'MERGED' : (item as any).state.toUpperCase(),
+                stateReason: null,
+                createdAt: item.created_at,
+                title: item.title,
+                body: item.body || '',
+                id: `ID_${item.id}`,
+                author: { login: item.user.login, id: `U_${item.user.id}`, name: item.user.login },
+                milestone: null,
+                assignees: {
+                  nodes: isIssue ? (issue!.assignees || []).map(a => ({ id: `U_${a.id}`, login: a.login, name: a.login, databaseId: a.id })) : [],
+                  totalCount: isIssue ? (issue!.assignees || []).length : 0,
+                },
+                labels: {
+                  nodes: isIssue ? (issue!.labels || []).map(l => ({ id: `L_${l.id}`, name: l.name, description: '', color: l.color })) : [],
+                  totalCount: isIssue ? (issue!.labels || []).length : 0,
+                },
+                reactionGroups: [],
+                comments: {
+                  nodes: comments.slice(-1).map(c => ({
+                    author: { login: c.user.login, id: `U_${c.user.id}`, name: c.user.login },
+                    authorAssociation: 'NONE',
+                    body: c.body,
+                    createdAt: c.created_at,
+                    includesCreatedEdit: false,
+                    isMinimized: false,
+                    minimizedReason: '',
+                    reactionGroups: [],
+                  })),
+                  totalCount: comments.length,
+                },
+                // PR-specific fields
+                ...(pull ? {
+                  headRefName: pull.head.ref,
+                  baseRefName: pull.base.ref,
+                  isDraft: pull.draft,
+                  mergeable: pull.mergeable ? 'MERGEABLE' : 'CONFLICTING',
+                } : {}),
+        };
+        return res.json({ data: { repository: { issue: node } } });
+      }
+
+      return res.json({ data: { repository: { issue: null, issueOrPullRequest: null } } });
+    }
+
+    // Issue list query (not single issue or project items)
+    if ((query.includes('issues(') || query.includes('issues {')) && !query.includes('projectItems')) {
       const repoOwner = variables.owner || store.github.user.login;
       const repoName = variables.repo || Object.values(store.github.repos)[0]?.name || '';
       const key = `${repoOwner}/${repoName}`;
@@ -53,7 +123,7 @@ export function githubRoutes(): Router {
       });
     }
 
-    if (query.includes('pullRequests') || query.includes('PullRequest')) {
+    if (query.includes('pullRequests(') || query.includes('pullRequests {')) {
       const repoOwner = variables.owner || store.github.user.login;
       const repoName = variables.repo || Object.values(store.github.repos)[0]?.name || '';
       const key = `${repoOwner}/${repoName}`;
@@ -87,6 +157,16 @@ export function githubRoutes(): Router {
           },
         },
       });
+    }
+
+    // Project items query stub
+    if (query.includes('projectItems')) {
+      const projectItems = { totalCount: 0, nodes: [], pageInfo: { hasNextPage: false, endCursor: null } };
+      // Return only the field the query asks for
+      const repoData: any = {};
+      if (query.includes('issue(')) repoData.issue = { projectItems };
+      if (query.includes('pullRequest(')) repoData.pullRequest = { projectItems };
+      return res.json({ data: { repository: repoData } });
     }
 
     // Fallback for unknown queries
