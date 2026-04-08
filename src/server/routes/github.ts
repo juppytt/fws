@@ -18,7 +18,77 @@ export function githubRoutes(): Router {
 
     // Detect what the query is asking for and return appropriate data
 
-    // Single issue/PR by number (gh issue view, gh pr view)
+    // Single PR by number (gh pr view)
+    if (query.includes('pullRequest(number:') && !query.includes('pullRequests(') && !query.includes('projectItems')) {
+      const repoOwner = variables.owner || store.github.user.login;
+      const repoName = variables.repo || Object.values(store.github.repos)[0]?.name || '';
+      const key = `${repoOwner}/${repoName}`;
+      const num = variables.pr_number || variables.number || 0;
+
+      const pull = store.github.pulls[key]?.[num];
+      if (!pull) {
+        return res.json({ data: { repository: { pullRequest: null } } });
+      }
+
+      const commentsKey = `${key}/issues/${num}`;
+      const comments = store.github.comments[commentsKey] || [];
+
+      return res.json({
+        data: {
+          repository: {
+            pullRequest: {
+              __typename: 'PullRequest',
+              number: pull.number,
+              url: pull.html_url,
+              title: pull.title,
+              body: pull.body || '',
+              state: pull.state === 'merged' ? 'MERGED' : pull.state.toUpperCase(),
+              createdAt: pull.created_at,
+              isDraft: pull.draft,
+              maintainerCanModify: true,
+              mergeable: pull.mergeable ? 'MERGEABLE' : 'CONFLICTING',
+              additions: 10,
+              deletions: 3,
+              headRefName: pull.head.ref,
+              baseRefName: pull.base.ref,
+              headRepositoryOwner: { id: `U_${pull.user.id}`, login: pull.user.login, name: pull.user.login },
+              headRepository: { id: 'R_1', name: repoName },
+              isCrossRepository: false,
+              id: `PR_${pull.id}`,
+              author: { login: pull.user.login, id: `U_${pull.user.id}`, name: pull.user.login },
+              autoMergeRequest: null,
+              reviewRequests: { nodes: [] },
+              reviews: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null }, totalCount: 0 },
+              assignees: { nodes: [], totalCount: 0 },
+              labels: { nodes: [], totalCount: 0 },
+              milestone: null,
+              comments: {
+                nodes: comments.map(c => ({
+                  id: `C_${c.id}`,
+                  author: { login: c.user.login, id: `U_${c.user.id}`, name: c.user.login },
+                  authorAssociation: 'NONE',
+                  body: c.body,
+                  createdAt: c.created_at,
+                  includesCreatedEdit: false,
+                  isMinimized: false,
+                  minimizedReason: '',
+                  reactionGroups: [],
+                  url: c.html_url,
+                  viewerDidAuthor: false,
+                })),
+                pageInfo: { hasNextPage: false, endCursor: null },
+                totalCount: comments.length,
+              },
+              reactionGroups: [],
+              commits: { totalCount: 1 },
+              statusCheckRollup: { nodes: [{ commit: { statusCheckRollup: { contexts: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } } } }] },
+            },
+          },
+        },
+      });
+    }
+
+    // Single issue/PR by number (gh issue view)
     if (query.includes('issueOrPullRequest')) {
       const repoOwner = variables.owner || store.github.user.login;
       const repoName = variables.repo || Object.values(store.github.repos)[0]?.name || '';
