@@ -16,6 +16,10 @@ export interface TestHarness {
   gws: (args: string) => Promise<{ stdout: string; stderr: string; exitCode: number }>;
   /** Run gws command with MITM proxy (for helper commands like +triage) */
   gwsProxy: (args: string) => Promise<{ stdout: string; stderr: string; exitCode: number }>;
+  /** Run gh command with MITM proxy */
+  ghProxy: (args: string) => Promise<{ stdout: string; stderr: string; exitCode: number }>;
+  /** Run gh command with MITM proxy and GH_REPO set */
+  ghProxyWithRepo: (args: string) => Promise<{ stdout: string; stderr: string; exitCode: number }>;
   cleanup: () => Promise<void>;
 }
 
@@ -81,9 +85,9 @@ export async function createTestHarness(): Promise<TestHarness> {
     return result;
   }
 
-  function runGws(args: string, env: Record<string, string | undefined>): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  function runCmd(bin: string, args: string, env: Record<string, string | undefined>): Promise<{ stdout: string; stderr: string; exitCode: number }> {
     return new Promise((resolve) => {
-      execFile(gwsPath, parseArgs(args), { env, timeout: 10000 }, (err, stdout, stderr) => {
+      execFile(bin, parseArgs(args), { env, timeout: 10000 }, (err, stdout, stderr) => {
         resolve({
           stdout: stdout || '',
           stderr: stderr || '',
@@ -93,12 +97,26 @@ export async function createTestHarness(): Promise<TestHarness> {
     });
   }
 
+  const ghEnv = {
+    ...proxyEnv,
+    GH_TOKEN: 'fake',
+  };
+
+  const ghEnvWithRepo = {
+    ...ghEnv,
+    GH_REPO: 'testuser/my-project',
+  };
+
+  const ghPath = process.env.GH_PATH || 'gh';
+
   return {
     port,
     fetch: (urlPath: string, init?: RequestInit) =>
       globalThis.fetch(`http://localhost:${port}${urlPath}`, init),
-    gws: (args: string) => runGws(args, baseEnv),
-    gwsProxy: (args: string) => runGws(args, proxyEnv),
+    gws: (args: string) => runCmd(gwsPath, args, baseEnv),
+    gwsProxy: (args: string) => runCmd(gwsPath, args, proxyEnv),
+    ghProxy: (args: string) => runCmd(ghPath, args, ghEnv),
+    ghProxyWithRepo: (args: string) => runCmd(ghPath, args, ghEnvWithRepo),
     cleanup: async () => {
       server.close();
       proxyServer.close();
