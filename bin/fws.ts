@@ -29,11 +29,14 @@ async function ensureDir(dir: string): Promise<void> {
   await fs.mkdir(dir, { recursive: true });
 }
 
+import { createRequire } from 'node:module';
+const pkg = createRequire(import.meta.url)('../package.json');
+
 const program = new Command();
 program
   .name('fws')
   .description('Fake Google Workspace — local mock server for gws CLI testing')
-  .version('0.1.0');
+  .version(pkg.version);
 
 // === Server commands ===
 const serverCmd = program.command('server');

@@ -1,6 +1,6 @@
 {
   "name": "@juppytt/fws",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "description": "Fake Google Workspace — local mock server for gws CLI testing",
   "type": "module",
   "bin": {
