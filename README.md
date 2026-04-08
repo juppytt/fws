@@ -1,6 +1,6 @@
-# fws — Fake Google Workspace
+# fws — Fake Web Services
 
-A local mock server that redirects the `gws` CLI, enabling Google Workspace testing without OAuth authentication.
+A local mock server for testing CLI tools and agents against fake web services without real credentials. Supports Google Workspace (`gws` CLI), GitHub (`gh` CLI), and more.
 
 Built with [Claude Code](https://claude.ai/code).
 

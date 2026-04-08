@@ -35,7 +35,7 @@ const pkg = createRequire(import.meta.url)('../package.json');
 const program = new Command();
 program
   .name('fws')
-  .description('Fake Google Workspace — local mock server for gws CLI testing')
+  .description('Fake Web Services — local mock server for testing CLI tools and agents without real credentials')
   .version(pkg.version);
 
 // === Server commands ===
