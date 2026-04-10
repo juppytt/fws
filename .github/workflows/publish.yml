@@ -31,6 +31,12 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           cache: 'npm'
 
+      # Trusted publishing (OIDC) requires npm >= 11.5.1. Node 20 ships with
+      # an older npm that silently falls back to unauthenticated publishes,
+      # which the registry rejects with a misleading 404.
+      - name: Upgrade npm to latest
+        run: npm install -g npm@latest
+
       - name: Install fws deps
         run: npm ci
 
