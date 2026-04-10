@@ -6,6 +6,13 @@
   "bin": {
     "fws": "bin/fws-cli.js"
   },
+  "files": [
+    "bin",
+    "src",
+    "docs",
+    "README.md",
+    "fws-banner.png"
+  ],
   "scripts": {
     "start": "tsx bin/fws.ts server start",
     "build": "tsc",
@@ -13,7 +20,8 @@
     "test": "vitest run",
     "test:unit": "vitest run --project unit",
     "test:e2e": "vitest run --project e2e",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "prepublishOnly": "tsc --noEmit && vitest run --project unit"
   },
   "dependencies": {
     "commander": "^13.0.0",

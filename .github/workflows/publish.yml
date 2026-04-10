@@ -1,0 +1,50 @@
+name: publish
+
+# Triggered by pushing a v* tag (created by `npm version <patch|minor|major>`).
+# Releases @juppytt/fws to npm with build provenance via OIDC trusted publishing
+# (no NPM_TOKEN secret required — configure on npmjs.com under the package's
+# "Trusted Publisher" settings).
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    name: publish to npm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write   # required for npm provenance via OIDC
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+
+      - name: Install fws deps
+        run: npm ci
+
+      # Tests below run the full suite (unit + e2e), so install the same CLIs
+      # the ci.yml workflow installs.
+      - name: Install gws CLI (latest)
+        run: npm install -g @googleworkspace/cli
+
+      - name: Verify gh CLI
+        run: gh --version
+
+      - name: Verify openssl
+        run: openssl version
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Run full test suite
+        run: npm test
+
+      - name: Publish to npm with provenance
+        run: npm publish --provenance --access public
