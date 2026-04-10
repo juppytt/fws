@@ -1,4 +1,4 @@
-import type { FwsStore, GmailLabel, GmailMessage, CalendarEvent, DriveFile, TaskList, Task, Spreadsheet, Person, ContactGroup, GitHubStore, SearchStore } from './types.js';
+import type { FwsStore, GmailLabel, GmailMessage, CalendarEvent, DriveFile, TaskList, Task, Spreadsheet, Person, ContactGroup, GitHubStore, SearchStore, WebFetchStore } from './types.js';
 import { generateEtag } from '../util/id.js';
 
 const SYSTEM_LABELS: GmailLabel[] = [
@@ -410,6 +410,32 @@ export function createSeedStore(): FwsStore {
       },
     },
     search: createSearchSeed(),
+    webFetch: createWebFetchSeed(),
+  };
+}
+
+function createWebFetchSeed(): WebFetchStore {
+  return {
+    // Each fixture's host (or URL host) becomes eligible for proxy
+    // interception automatically — no global toggle.
+    fixtures: [
+      {
+        url: 'https://example.com/',
+        response: {
+          status: 200,
+          headers: { 'content-type': 'text/html; charset=utf-8' },
+          body: '<!doctype html><html><body><h1>Example Domain (mocked)</h1></body></html>',
+        },
+      },
+      {
+        host: 'httpbin.org',
+        response: {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ url: 'https://httpbin.org/', origin: '127.0.0.1', mock: true }),
+        },
+      },
+    ],
   };
 }
 

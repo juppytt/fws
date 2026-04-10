@@ -57,18 +57,7 @@ The server starts with sample seed data so you can try commands immediately.
 
 ## Usage
 
-### Proxy mode (one-shot)
-
-Starts a temporary server, runs gws, exits. No separate server needed.
-
-```bash
-fws gmail users messages list --params '{"userId":"me"}'
-fws gmail +triage
-fws calendar calendarList list
-fws drive about get --params '{"fields":"*"}'
-```
-
-### Server mode (persistent)
+### Start the server
 
 ```bash
 fws server start                  # Start in background
@@ -77,13 +66,40 @@ fws server stop                   # Stop
 fws server start --foreground     # Run in foreground (for debugging)
 ```
 
-### Setup (add data to running server)
+After starting, configure your shell so `gws`, `gh`, `curl`, etc. route
+through the mock:
 
 ```bash
-fws setup gmail add-message --from alice@corp.com --subject "Meeting" --body "See you at 3pm"
-fws setup calendar add-event --summary "Team sync" --start 2026-04-08T15:00:00 --duration 1h
-fws setup drive add-file --name "report.pdf" --mimeType application/pdf
+eval $(fws server env)
 ```
+
+Then run the CLI tools normally:
+
+```bash
+gws gmail users messages list --params '{"userId":"me"}'
+gws gmail +triage
+gh issue list
+curl https://example.com/        # mocked via Web Fetch (see below)
+```
+
+### Inject data into a running server
+
+Each service is its own top-level command. The action is `add` for all
+services that just take new entries.
+
+```bash
+fws gmail    add --from alice@corp.com --subject "Meeting" --body "See you at 3pm"
+fws calendar add --summary "Team sync" --start 2026-04-08T15:00:00 --duration 1h
+fws drive    add --name "report.pdf" --mimeType application/pdf
+fws search   add --keywords python,py --results '[{"title":"Python","link":"https://python.org/","displayLink":"python.org","snippet":"..."}]'
+fws fetch    add --url https://api.example.com/v1/echo --status 200 --body '{"hello":"world"}' --header 'content-type: application/json'
+```
+
+`fws fetch add` is the entry point to **Web Fetch** — a generic mock for
+arbitrary HTTP/HTTPS URLs. Adding a fixture for a URL or host
+automatically makes that host eligible for proxy interception, so any
+client routed through `HTTPS_PROXY` will see the mock instead of hitting
+the real internet.
 
 ### Snapshots
 

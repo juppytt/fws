@@ -28,13 +28,29 @@ Stop the running server.
 
 Show whether the server is running and on which port.
 
+### `fws server env`
+
+Print the env-var exports a child process needs to talk to the running daemon
+(GOOGLE_WORKSPACE_CLI_CONFIG_DIR, HTTPS_PROXY, SSL_CERT_FILE, GH_TOKEN, etc.).
+Use with `eval`:
+
+```bash
+fws server start
+eval $(fws server env)
+gws gmail users messages list --params '{"userId":"me"}'
+gh issue list
+fws server stop
+```
+
 ---
 
-## Setup
+## Service data injection
 
-Convenience commands to seed data into a running server. The server must be running first (`fws server start`).
+Each service that supports runtime data injection has a top-level command.
+Common pattern: `fws <service> add ...`. The server must be running first
+(`fws server start`).
 
-### `fws setup gmail add-message`
+### `fws gmail add`
 
 Add an email message to the mailbox.
 
@@ -48,35 +64,14 @@ Add an email message to the mailbox.
 | `-p, --port <port>` | no | Server port | `4100` |
 
 ```bash
-fws setup gmail add-message --from alice@company.com --subject "Meeting" --body "See you at 3pm"
-fws setup gmail add-message --from bot@ci.com --subject "Build failed" --labels INBOX,UNREAD,IMPORTANT
-fws setup gmail add-message --from me@example.com --to bob@example.com --subject "Reply" --labels SENT
+fws gmail add --from alice@company.com --subject "Meeting" --body "See you at 3pm"
+fws gmail add --from bot@ci.com --subject "Build failed" --labels INBOX,UNREAD,IMPORTANT
+fws gmail add --from me@example.com --to bob@example.com --subject "Reply" --labels SENT
 ```
-
-**HTTP API equivalent:**
-
-```bash
-curl -X POST http://localhost:4100/__fws/setup/gmail/message \
-  -H 'Content-Type: application/json' \
-  -d '{"from":"alice@company.com","subject":"Meeting","body":"See you at 3pm","labels":["INBOX","UNREAD"]}'
-```
-
-Request body fields:
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `from` | string | Sender address |
-| `to` | string | Recipient address |
-| `subject` | string | Subject line |
-| `body` | string | Message body |
-| `labels` | string[] | Label IDs |
-| `date` | string | ISO 8601 date (defaults to now) |
-
-Response: `{ "id": "...", "threadId": "..." }`
 
 ---
 
-### `fws setup calendar add-event`
+### `fws calendar add`
 
 Add a calendar event.
 
@@ -93,36 +88,14 @@ Add a calendar event.
 End time is computed automatically from `start + duration`.
 
 ```bash
-fws setup calendar add-event --summary "Standup" --start 2026-04-08T09:00:00
-fws setup calendar add-event --summary "Lunch" --start 2026-04-08T12:00:00 --duration 1h --location "Cafeteria"
-fws setup calendar add-event --summary "Review" --start 2026-04-08T14:00:00 --duration 30m --attendees alice@co.com,bob@co.com
+fws calendar add --summary "Standup" --start 2026-04-08T09:00:00
+fws calendar add --summary "Lunch" --start 2026-04-08T12:00:00 --duration 1h --location "Cafeteria"
+fws calendar add --summary "Review" --start 2026-04-08T14:00:00 --duration 30m --attendees alice@co.com,bob@co.com
 ```
-
-**HTTP API equivalent:**
-
-```bash
-curl -X POST http://localhost:4100/__fws/setup/calendar/event \
-  -H 'Content-Type: application/json' \
-  -d '{"summary":"Standup","start":"2026-04-08T09:00:00Z","duration":"30m"}'
-```
-
-Request body fields:
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `summary` | string | Event title |
-| `start` | string | ISO 8601 start time |
-| `duration` | string | Duration (`30m`, `1h`, `2h`, `1d`) — default `1h` |
-| `description` | string | Event description |
-| `location` | string | Location |
-| `calendar` | string | Calendar ID (omit for primary) |
-| `attendees` | string[] | Attendee email addresses |
-
-Response: `{ "id": "...", "calendarId": "..." }`
 
 ---
 
-### `fws setup drive add-file`
+### `fws drive add`
 
 Add a file (metadata only) to Drive.
 
@@ -135,30 +108,72 @@ Add a file (metadata only) to Drive.
 | `-p, --port <port>` | no | Server port | `4100` |
 
 ```bash
-fws setup drive add-file --name "report.pdf" --mimeType application/pdf
-fws setup drive add-file --name "Project Docs" --mimeType application/vnd.google-apps.folder
-fws setup drive add-file --name "notes.txt" --mimeType text/plain --parent folder001 --size 1024
+fws drive add --name "report.pdf" --mimeType application/pdf
+fws drive add --name "Project Docs" --mimeType application/vnd.google-apps.folder
+fws drive add --name "notes.txt" --mimeType text/plain --parent folder001 --size 1024
 ```
 
-**HTTP API equivalent:**
+---
+
+### `fws search add`
+
+Add a Custom Search fixture (keywords → results). Used by the Search fake
+service that mocks the Google Custom Search JSON API at `/customsearch/v1`.
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--keywords <list>` | **yes** | Comma-separated keywords (case-insensitive substring match against query) |
+| `--results <json>` | **yes** | JSON array of `{title, link, displayLink, snippet}` |
+| `-p, --port <port>` | no | Server port (default `4100`) |
 
 ```bash
-curl -X POST http://localhost:4100/__fws/setup/drive/file \
-  -H 'Content-Type: application/json' \
-  -d '{"name":"report.pdf","mimeType":"application/pdf"}'
+fws search add \
+  --keywords python,py \
+  --results '[{"title":"Python","link":"https://python.org/","displayLink":"python.org","snippet":"The Python language."}]'
 ```
 
-Request body fields:
+---
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `name` | string | File name |
-| `mimeType` | string | MIME type |
-| `parent` | string | Parent folder ID |
-| `size` | number | File size in bytes |
-| `description` | string | File description |
+### `fws fetch add`
 
-Response: `{ "id": "..." }`
+Add a Web Fetch fixture — a mock for arbitrary HTTP/HTTPS URLs accessed
+through the MITM proxy. Adding a fixture for a URL or host automatically
+makes that host eligible for proxy interception, so any client routed
+through `HTTPS_PROXY` will get the mock back instead of hitting the real
+internet.
+
+| Flag | Required | Description | Default |
+|------|----------|-------------|---------|
+| `--url <url>` | one of url/host | Exact URL to mock (`https://example.com/foo`) | — |
+| `--host <host>` | one of url/host | Hostname to mock (matches any path) | — |
+| `--method <verb>` | no | HTTP method to filter on (omit for any) | — |
+| `--status <code>` | no | Response status code | `200` |
+| `--body <text>` | no | Response body | empty |
+| `--header <kv...>` | no | Response header in `Name: Value` form (repeatable) | — |
+| `-p, --port <port>` | no | Server port | `4100` |
+
+```bash
+# Exact URL match
+fws fetch add \
+  --url https://api.example.com/v1/echo \
+  --status 200 \
+  --body '{"hello":"world"}' \
+  --header 'content-type: application/json'
+
+# Host-only match (any path on this host)
+fws fetch add \
+  --host blog.example.com \
+  --status 200 \
+  --body '<h1>Mocked blog</h1>' \
+  --header 'content-type: text/html'
+
+# Method-filtered fixture
+fws fetch add \
+  --url https://api.example.com/v1/submit \
+  --method POST \
+  --status 201 \
+  --body '{"created":true}'
+```
 
 ---
 
@@ -166,7 +181,8 @@ Response: `{ "id": "..." }`
 
 All data is in-memory. Snapshots save/restore the full server state to disk.
 
-Stored in `~/.local/share/fws/snapshots/<name>/store.json` (override with `FWS_DATA_DIR`).
+Stored in `~/.local/share/fws/snapshots/<name>/store.json` (override with
+`FWS_DATA_DIR`).
 
 ### `fws snapshot save <name>`
 
@@ -195,17 +211,3 @@ Reset server to default seed data.
 ### `fws reset --snapshot <name>`
 
 Reset server to a specific snapshot.
-
----
-
-## Proxy mode
-
-Any command that doesn't match a built-in subcommand is forwarded to `gws` through a temporary mock server.
-
-```bash
-fws gmail users messages list --params '{"userId":"me"}'
-fws drive files list
-fws calendar events list --params '{"calendarId":"primary"}'
-```
-
-This starts a server, runs the gws command, and exits. No `fws server start` needed.
