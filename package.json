@@ -3,6 +3,14 @@
   "version": "0.3.1",
   "description": "Fake Web Services — local mock server for testing CLI tools and agents without real credentials",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/juppytt/fws.git"
+  },
+  "homepage": "https://github.com/juppytt/fws#readme",
+  "bugs": {
+    "url": "https://github.com/juppytt/fws/issues"
+  },
   "bin": {
     "fws": "bin/fws-cli.js"
   },
