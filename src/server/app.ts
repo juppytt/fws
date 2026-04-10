@@ -6,6 +6,7 @@ import { tasksRoutes } from './routes/tasks.js';
 import { sheetsRoutes } from './routes/sheets.js';
 import { peopleRoutes } from './routes/people.js';
 import { githubRoutes } from './routes/github.js';
+import { searchRoutes } from './routes/search.js';
 import { controlRoutes } from './routes/control.js';
 import { errorHandler } from './middleware.js';
 
@@ -21,6 +22,7 @@ export function createApp(): express.Express {
   app.use(sheetsRoutes());
   app.use(peopleRoutes());
   app.use(githubRoutes());
+  app.use(searchRoutes());
 
   app.use(errorHandler);
 

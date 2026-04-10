@@ -1,4 +1,4 @@
-import type { FwsStore, GmailLabel, GmailMessage, CalendarEvent, DriveFile, TaskList, Task, Spreadsheet, Person, ContactGroup, GitHubStore } from './types.js';
+import type { FwsStore, GmailLabel, GmailMessage, CalendarEvent, DriveFile, TaskList, Task, Spreadsheet, Person, ContactGroup, GitHubStore, SearchStore } from './types.js';
 import { generateEtag } from '../util/id.js';
 
 const SYSTEM_LABELS: GmailLabel[] = [
@@ -409,6 +409,61 @@ export function createSeedStore(): FwsStore {
         ],
       },
     },
+    search: createSearchSeed(),
+  };
+}
+
+function createSearchSeed(): SearchStore {
+  return {
+    fixtures: [
+      {
+        keywords: ['typescript', 'ts'],
+        results: [
+          {
+            title: 'TypeScript: JavaScript With Syntax For Types',
+            link: 'https://www.typescriptlang.org/',
+            displayLink: 'www.typescriptlang.org',
+            snippet: 'TypeScript extends JavaScript by adding types to the language.',
+          },
+          {
+            title: 'TypeScript Documentation',
+            link: 'https://www.typescriptlang.org/docs/',
+            displayLink: 'www.typescriptlang.org',
+            snippet: 'Find TypeScript starter projects: from Angular to React or Node.js and CLIs.',
+          },
+        ],
+      },
+      {
+        keywords: ['python'],
+        results: [
+          {
+            title: 'Welcome to Python.org',
+            link: 'https://www.python.org/',
+            displayLink: 'www.python.org',
+            snippet: 'The official home of the Python Programming Language.',
+          },
+        ],
+      },
+      {
+        keywords: ['weather'],
+        results: [
+          {
+            title: 'Weather Forecast - Example.com',
+            link: 'https://weather.example.com/',
+            displayLink: 'weather.example.com',
+            snippet: 'Today: sunny, high 72°F. Tomorrow: partly cloudy.',
+          },
+        ],
+      },
+    ],
+    defaultResults: [
+      {
+        title: 'Example Domain',
+        link: 'https://example.com/',
+        displayLink: 'example.com',
+        snippet: 'This domain is for use in illustrative examples in documents.',
+      },
+    ],
   };
 }
 
