@@ -1,10 +1,10 @@
 #!/usr/bin/env tsx
 import { Command } from 'commander';
 import { createApp } from '../src/server/app.js';
-import { resetStore, loadStore, serializeStore, deserializeStore } from '../src/store/index.js';
+import { loadStore, deserializeStore } from '../src/store/index.js';
 import { generateConfigDir } from '../src/config/rewrite-cache.js';
 import { generateCACert, startMitmProxy } from '../src/proxy/mitm.js';
-import { spawn, execFile } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
@@ -288,91 +288,175 @@ snapshotCmd
     console.log(`Snapshot deleted: ${name}`);
   });
 
-// === Setup commands ===
-const setupCmd = program.command('setup');
-const setupGmail = setupCmd.command('gmail');
+// === Service data-injection commands ===
+//
+// Each command is a thin wrapper around the corresponding /__fws/setup/...
+// HTTP endpoint on a running daemon. Naming convention is `fws <service>
+// <action>`, flat at the top level — no `setup` namespace, since the
+// service name is already the namespace.
 
-setupGmail
-  .command('add-message')
-  .description('Add a message to the mailbox')
-  .requiredOption('--from <email>', 'From address')
-  .option('--to <email>', 'To address')
-  .option('--subject <text>', 'Subject line')
-  .option('--body <text>', 'Message body')
-  .option('--labels <list>', 'Comma-separated label IDs', 'INBOX,UNREAD')
-  .option('-p, --port <port>', 'Server port', String(DEFAULT_PORT))
-  .action(async (opts) => {
-    const port = parseInt(opts.port);
-    const res = await fetch(`http://localhost:${port}/__fws/setup/gmail/message`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        from: opts.from,
-        to: opts.to,
-        subject: opts.subject,
-        body: opts.body,
-        labels: opts.labels.split(','),
-      }),
-    });
-    const data = await res.json();
-    console.log(`Message added: ${data.id}`);
+async function postSetup(port: number, urlPath: string, body: object): Promise<any> {
+  const res = await fetch(`http://localhost:${port}${urlPath}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
   });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`POST ${urlPath} failed: ${res.status} ${text}`);
+  }
+  return res.json();
+}
 
-const setupCalendar = setupCmd.command('calendar');
-
-setupCalendar
-  .command('add-event')
-  .description('Add an event to a calendar')
-  .requiredOption('--summary <text>', 'Event title')
-  .requiredOption('--start <datetime>', 'Start time (ISO 8601)')
-  .option('--duration <dur>', 'Duration (e.g. 30m, 1h, 2h)', '1h')
-  .option('--calendar <id>', 'Calendar ID', 'primary')
-  .option('--location <text>', 'Location')
-  .option('--attendees <list>', 'Comma-separated attendee emails')
-  .option('-p, --port <port>', 'Server port', String(DEFAULT_PORT))
-  .action(async (opts) => {
-    const port = parseInt(opts.port);
-    const res = await fetch(`http://localhost:${port}/__fws/setup/calendar/event`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        summary: opts.summary,
-        start: opts.start,
-        duration: opts.duration,
-        calendar: opts.calendar === 'primary' ? undefined : opts.calendar,
-        location: opts.location,
-        attendees: opts.attendees?.split(','),
+// fws gmail add
+program
+  .command('gmail')
+  .description("Inject data into the running daemon's gmail mailbox")
+  .addCommand(
+    new Command('add')
+      .description('Add a message to the mailbox')
+      .requiredOption('--from <email>', 'From address')
+      .option('--to <email>', 'To address')
+      .option('--subject <text>', 'Subject line')
+      .option('--body <text>', 'Message body')
+      .option('--labels <list>', 'Comma-separated label IDs', 'INBOX,UNREAD')
+      .option('-p, --port <port>', 'Server port', String(DEFAULT_PORT))
+      .action(async (opts) => {
+        const port = parseInt(opts.port);
+        const data = await postSetup(port, '/__fws/setup/gmail/message', {
+          from: opts.from,
+          to: opts.to,
+          subject: opts.subject,
+          body: opts.body,
+          labels: opts.labels.split(','),
+        });
+        console.log(`Message added: ${data.id}`);
       }),
-    });
-    const data = await res.json();
-    console.log(`Event added: ${data.id}`);
-  });
+  );
 
-const setupDrive = setupCmd.command('drive');
-
-setupDrive
-  .command('add-file')
-  .description('Add a file to Drive')
-  .requiredOption('--name <text>', 'File name')
-  .option('--mimeType <type>', 'MIME type', 'application/octet-stream')
-  .option('--parent <id>', 'Parent folder ID', 'root')
-  .option('--size <bytes>', 'File size in bytes')
-  .option('-p, --port <port>', 'Server port', String(DEFAULT_PORT))
-  .action(async (opts) => {
-    const port = parseInt(opts.port);
-    const res = await fetch(`http://localhost:${port}/__fws/setup/drive/file`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: opts.name,
-        mimeType: opts.mimeType,
-        parent: opts.parent,
-        size: opts.size ? parseInt(opts.size) : undefined,
+// fws calendar add
+program
+  .command('calendar')
+  .description("Inject data into the running daemon's calendar")
+  .addCommand(
+    new Command('add')
+      .description('Add an event to a calendar')
+      .requiredOption('--summary <text>', 'Event title')
+      .requiredOption('--start <datetime>', 'Start time (ISO 8601)')
+      .option('--duration <dur>', 'Duration (e.g. 30m, 1h, 2h)', '1h')
+      .option('--calendar <id>', 'Calendar ID', 'primary')
+      .option('--location <text>', 'Location')
+      .option('--attendees <list>', 'Comma-separated attendee emails')
+      .option('-p, --port <port>', 'Server port', String(DEFAULT_PORT))
+      .action(async (opts) => {
+        const port = parseInt(opts.port);
+        const data = await postSetup(port, '/__fws/setup/calendar/event', {
+          summary: opts.summary,
+          start: opts.start,
+          duration: opts.duration,
+          calendar: opts.calendar === 'primary' ? undefined : opts.calendar,
+          location: opts.location,
+          attendees: opts.attendees?.split(','),
+        });
+        console.log(`Event added: ${data.id}`);
       }),
-    });
-    const data = await res.json();
-    console.log(`File added: ${data.id}`);
-  });
+  );
+
+// fws drive add
+program
+  .command('drive')
+  .description("Inject data into the running daemon's drive")
+  .addCommand(
+    new Command('add')
+      .description('Add a file to Drive')
+      .requiredOption('--name <text>', 'File name')
+      .option('--mimeType <type>', 'MIME type', 'application/octet-stream')
+      .option('--parent <id>', 'Parent folder ID', 'root')
+      .option('--size <bytes>', 'File size in bytes')
+      .option('-p, --port <port>', 'Server port', String(DEFAULT_PORT))
+      .action(async (opts) => {
+        const port = parseInt(opts.port);
+        const data = await postSetup(port, '/__fws/setup/drive/file', {
+          name: opts.name,
+          mimeType: opts.mimeType,
+          parent: opts.parent,
+          size: opts.size ? parseInt(opts.size) : undefined,
+        });
+        console.log(`File added: ${data.id}`);
+      }),
+  );
+
+// fws search add
+program
+  .command('search')
+  .description("Inject Custom Search fixtures")
+  .addCommand(
+    new Command('add')
+      .description('Add a Custom Search fixture (keywords → results)')
+      .requiredOption('--keywords <list>', 'Comma-separated keywords (case-insensitive substring match)')
+      .requiredOption('--results <json>', 'JSON array of {title,link,displayLink,snippet}')
+      .option('-p, --port <port>', 'Server port', String(DEFAULT_PORT))
+      .action(async (opts) => {
+        const port = parseInt(opts.port);
+        let results: unknown;
+        try {
+          results = JSON.parse(opts.results);
+        } catch (e) {
+          console.error(`--results is not valid JSON: ${(e as Error).message}`);
+          process.exit(1);
+        }
+        await postSetup(port, '/__fws/setup/search/fixture', {
+          keywords: opts.keywords.split(','),
+          results,
+        });
+        console.log('Search fixture added');
+      }),
+  );
+
+// fws fetch add
+program
+  .command('fetch')
+  .description('Inject Web Fetch fixtures (mock arbitrary HTTP/HTTPS URLs)')
+  .addCommand(
+    new Command('add')
+      .description('Add a Web Fetch fixture. Specify either --url (exact match) or --host (any path on this host).')
+      .option('--url <url>', 'Exact URL to mock (https://example.com/foo)')
+      .option('--host <host>', 'Hostname to mock (example.com — matches any path)')
+      .option('--method <verb>', 'HTTP method to filter on (omit for any)')
+      .option('--status <code>', 'Response status code', '200')
+      .option('--body <text>', 'Response body (string)', '')
+      .option('--header <kv...>', 'Response header in "Name: Value" form (repeatable)')
+      .option('-p, --port <port>', 'Server port', String(DEFAULT_PORT))
+      .action(async (opts) => {
+        if (!opts.url && !opts.host) {
+          console.error('one of --url or --host is required');
+          process.exit(1);
+        }
+        const headers: Record<string, string> = {};
+        if (Array.isArray(opts.header)) {
+          for (const h of opts.header) {
+            const idx = (h as string).indexOf(':');
+            if (idx <= 0) {
+              console.error(`bad --header value (expected "Name: Value"): ${h}`);
+              process.exit(1);
+            }
+            headers[(h as string).slice(0, idx).trim()] = (h as string).slice(idx + 1).trim();
+          }
+        }
+        const port = parseInt(opts.port);
+        await postSetup(port, '/__fws/setup/fetch/fixture', {
+          url: opts.url,
+          host: opts.host,
+          method: opts.method,
+          response: {
+            status: parseInt(opts.status),
+            headers: Object.keys(headers).length > 0 ? headers : undefined,
+            body: opts.body,
+          },
+        });
+        console.log('Fetch fixture added');
+      }),
+  );
 
 // === Reset command ===
 program
@@ -398,53 +482,15 @@ program
     }
   });
 
-// === Proxy mode (default): start server, run gws, exit ===
-// If first arg is not a known subcommand, treat as gws proxy
-const SUBCOMMANDS = ['server', 'snapshot', 'setup', 'reset', 'help', '--help', '-h', '--version', '-V'];
+// The implicit "proxy mode" (any unknown first-arg → spawn temporary
+// daemon and forward to gws) used to live here. It was removed because
+// the flat top-level commands (`fws gmail add`, `fws calendar add`, ...)
+// conflict with the gws command names it would forward (`fws gmail
+// users messages list`). The replacement is the explicit two-step:
+//
+//   fws server start
+//   eval $(fws server env)
+//   gws gmail users messages list
+//   fws server stop
 
-async function runProxy(args: string[]): Promise<void> {
-  const port = DEFAULT_PORT;
-  const proxyPort = DEFAULT_PROXY_PORT;
-
-  // Start server in-process
-  const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'fws-proxy-'));
-  await generateConfigDir(port, configDir);
-
-  // Generate CA and start MITM proxy
-  const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'fws-proxy-data-'));
-  const { caPath } = await generateCACert(dataDir);
-  const proxyServer = startMitmProxy(port, proxyPort);
-
-  const app = createApp();
-  const server: Server = await new Promise((resolve) => {
-    const s = app.listen(port, () => resolve(s));
-  });
-
-  const gwsPath = process.env.GWS_PATH || 'gws';
-  const env = {
-    ...process.env,
-    GOOGLE_WORKSPACE_CLI_CONFIG_DIR: configDir,
-    GOOGLE_WORKSPACE_CLI_TOKEN: 'fake',
-    HTTPS_PROXY: `http://localhost:${proxyPort}`,
-    SSL_CERT_FILE: caPath,
-  };
-
-  const child = spawn(gwsPath, args, { env, stdio: 'inherit' });
-
-  child.on('close', async (code) => {
-    server.close();
-    proxyServer.close();
-    await fs.rm(configDir, { recursive: true, force: true });
-    await fs.rm(dataDir, { recursive: true, force: true });
-    process.exit(code ?? 0);
-  });
-}
-
-// Main entry
-const firstArg = process.argv[2];
-if (firstArg && !SUBCOMMANDS.includes(firstArg)) {
-  // Proxy mode
-  runProxy(process.argv.slice(2));
-} else {
-  program.parse();
-}
+program.parse();

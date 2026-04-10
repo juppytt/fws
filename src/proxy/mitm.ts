@@ -4,6 +4,7 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { hasFixtureForHost } from '../server/routes/fetch.js';
 
 const INTERCEPTED_HOSTS = [
   // Google Workspace
@@ -141,18 +142,42 @@ async function getHostCert(hostname: string): Promise<CertPair> {
   return pair;
 }
 
+function isAllowlistedHost(hostname: string): boolean {
+  return INTERCEPTED_HOSTS.some(h => hostname === h || hostname.endsWith('.' + h));
+}
+
+/**
+ * Decide whether to intercept a host instead of passing it through to the
+ * real internet. Two reasons to intercept:
+ *  1. The host is in the built-in service allowlist (gmail.googleapis.com,
+ *     api.github.com, ...).
+ *  2. There is at least one Web Fetch fixture covering this host. Adding a
+ *     fixture for `https://example.com/foo` automatically makes example.com
+ *     eligible for interception, so users don't have to flip a global flag.
+ *
+ * The Web Fetch store is read on each CONNECT, so adding a fixture at
+ * runtime takes effect for new connections immediately.
+ */
+function shouldInterceptHost(hostname: string): boolean {
+  if (isAllowlistedHost(hostname)) return true;
+  return hasFixtureForHost(hostname);
+}
+
 export function startMitmProxy(mockPort: number, proxyPort: number): http.Server {
-  const proxy = http.createServer((_req, res) => {
-    res.writeHead(405);
-    res.end('MITM proxy only supports CONNECT');
+  // Plain HTTP requests (when the client uses HTTP_PROXY for an http:// URL)
+  // arrive here as ordinary requests with an absolute URL in the request line.
+  // Forward them to the mock server with X-Fws-Original-Host so the catch-all
+  // route can route them, OR pass them through to the real internet when the
+  // host is not intercepted.
+  const proxy = http.createServer((req, res) => {
+    handlePlainHttp(req, res, mockPort);
   });
 
   proxy.on('connect', async (req, clientSocket, head) => {
     const [hostname, portStr] = (req.url || '').split(':');
     const port = parseInt(portStr) || 443;
 
-    // Only intercept googleapis.com hosts
-    if (!INTERCEPTED_HOSTS.some(h => hostname === h || hostname.endsWith('.' + h))) {
+    if (!shouldInterceptHost(hostname)) {
       // Pass through to real server
       const serverSocket = net.connect(port, hostname, () => {
         clientSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
@@ -191,6 +216,85 @@ export function startMitmProxy(mockPort: number, proxyPort: number): http.Server
 
   proxy.listen(proxyPort);
   return proxy;
+}
+
+/**
+ * Handle a plain (non-CONNECT) HTTP request received by the proxy. This is
+ * the path curl/wget take when given `HTTP_PROXY` for an `http://` URL: the
+ * client sends `GET http://example.com/foo HTTP/1.1` directly to the proxy
+ * (note: absolute URL in request line, per HTTP/1.1 §5.3.2).
+ *
+ * If the host is in the intercept set, forward to the mock server with
+ * `X-Fws-Original-Host` so the catch-all route can find a fixture. Otherwise
+ * pass the request through to the real internet (mirrors the CONNECT
+ * passthrough for HTTPS).
+ */
+function handlePlainHttp(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  mockPort: number,
+): void {
+  const reqUrl = req.url || '';
+  let parsed: URL;
+  try {
+    parsed = new URL(reqUrl);
+  } catch {
+    res.writeHead(400);
+    res.end('Bad Request: expected absolute URL in request line');
+    return;
+  }
+
+  const hostname = parsed.hostname;
+
+  if (!shouldInterceptHost(hostname)) {
+    // Passthrough: open a TCP connection and forward the request unchanged.
+    const upstream = http.request(
+      {
+        hostname,
+        port: parsed.port ? parseInt(parsed.port) : 80,
+        method: req.method,
+        path: parsed.pathname + parsed.search,
+        headers: req.headers,
+      },
+      (upRes) => {
+        res.writeHead(upRes.statusCode ?? 502, upRes.headers);
+        upRes.pipe(res);
+      },
+    );
+    upstream.on('error', () => {
+      res.writeHead(502);
+      res.end('Bad Gateway');
+    });
+    req.pipe(upstream);
+    return;
+  }
+
+  // Intercepted: forward to local mock server with markers identifying the
+  // original host and scheme so the Web Fetch catch-all can build the
+  // canonical URL for fixture lookup.
+  const mockReq = http.request(
+    {
+      hostname: 'localhost',
+      port: mockPort,
+      method: req.method,
+      path: parsed.pathname + parsed.search,
+      headers: {
+        ...req.headers,
+        host: `localhost:${mockPort}`,
+        'x-fws-original-host': hostname,
+        'x-fws-original-scheme': 'http',
+      },
+    },
+    (mockRes) => {
+      res.writeHead(mockRes.statusCode ?? 502, mockRes.headers);
+      mockRes.pipe(res);
+    },
+  );
+  mockReq.on('error', () => {
+    res.writeHead(502);
+    res.end('Bad Gateway');
+  });
+  req.pipe(mockReq);
 }
 
 function handleInterceptedRequest(tlsSocket: tls.TLSSocket, hostname: string, mockPort: number): void {
@@ -275,7 +379,14 @@ function handleInterceptedRequest(tlsSocket: tls.TLSSocket, hostname: string, mo
         port: mockPort,
         path: urlPath,
         method,
-        headers: { ...headers, host: `localhost:${mockPort}` },
+        headers: {
+          ...headers,
+          host: `localhost:${mockPort}`,
+          // Markers for the Web Fetch catch-all so it can build the
+          // canonical URL for fixture lookup.
+          'x-fws-original-host': hostname,
+          'x-fws-original-scheme': 'https',
+        },
       },
       (mockRes) => {
         // Buffer the upstream response so we can write it as a single

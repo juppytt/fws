@@ -7,6 +7,7 @@ import { sheetsRoutes } from './routes/sheets.js';
 import { peopleRoutes } from './routes/people.js';
 import { githubRoutes } from './routes/github.js';
 import { searchRoutes } from './routes/search.js';
+import { webFetchRoutes, webFetchCatchAll } from './routes/fetch.js';
 import { controlRoutes } from './routes/control.js';
 import { errorHandler } from './middleware.js';
 
@@ -23,6 +24,12 @@ export function createApp(): express.Express {
   app.use(peopleRoutes());
   app.use(githubRoutes());
   app.use(searchRoutes());
+  app.use(webFetchRoutes());
+
+  // Web Fetch catch-all must be last (before errorHandler) so it only
+  // intercepts requests that no real route handled. Limited to requests
+  // that arrived via the MITM proxy by checking X-Fws-Original-Host.
+  app.use(webFetchCatchAll());
 
   app.use(errorHandler);
 

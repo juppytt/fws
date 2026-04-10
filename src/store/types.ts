@@ -9,6 +9,7 @@ export interface FwsStore {
   people: PeopleStore;
   github: GitHubStore;
   search: SearchStore;
+  webFetch: WebFetchStore;
 }
 
 // === Gmail ===
@@ -328,4 +329,43 @@ export interface SearchResult {
   link: string;
   displayLink: string;
   snippet: string;
+}
+
+// === Web Fetch ===
+//
+// Generic mock layer for arbitrary HTTP/HTTPS URLs accessed via curl/wget
+// (or any HTTP client routed through the MITM proxy).
+//
+// Model is intentionally minimal: a fixture for a host (or specific URL)
+// makes that host eligible for proxy interception. Hosts without any
+// fixture are passed through to the real internet (in addition to the
+// built-in allowlist of known service hosts like gmail.googleapis.com).
+//
+// There is no global "intercept everything" flag and no user-configurable
+// default response — both turned out to be confusing knobs that the user
+// surface didn't actually need. If a host gets intercepted (because it
+// has a fixture for /v1) but a different path on the same host (/v2) is
+// requested with no matching fixture, the catch-all returns a hardcoded
+// default JSON body just so the client gets *something* back.
+
+export interface WebFetchStore {
+  /** Lookup order: exact URL first, then host-only. */
+  fixtures: WebFetchFixture[];
+}
+
+export interface WebFetchFixture {
+  /** Match the full URL exactly (including scheme, host, path, query). */
+  url?: string;
+  /** Match any path on this host (no scheme, just `example.com`). */
+  host?: string;
+  /** Match only this method (GET/POST/...). Omit to match any method. */
+  method?: string;
+  response: WebFetchResponse;
+}
+
+export interface WebFetchResponse {
+  status: number;
+  headers?: Record<string, string>;
+  /** Response body as a string. Use base64 + a Content-Encoding/Content-Type header for binary. */
+  body: string;
 }
