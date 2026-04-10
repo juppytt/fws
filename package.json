@@ -1,11 +1,17 @@
 {
   "name": "@juppytt/fws",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Fake Web Services — local mock server for testing CLI tools and agents without real credentials",
   "type": "module",
   "bin": {
     "fws": "bin/fws-cli.js"
   },
+  "files": [
+    "bin",
+    "src",
+    "docs",
+    "README.md"
+  ],
   "scripts": {
     "start": "tsx bin/fws.ts server start",
     "build": "tsc",
@@ -13,7 +19,8 @@
     "test": "vitest run",
     "test:unit": "vitest run --project unit",
     "test:e2e": "vitest run --project e2e",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "prepublishOnly": "tsc --noEmit && vitest run --project unit"
   },
   "dependencies": {
     "commander": "^13.0.0",
