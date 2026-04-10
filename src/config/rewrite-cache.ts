@@ -33,7 +33,11 @@ async function readOrDownload(file: string, api: string, version: string): Promi
     return await fs.readFile(fwsCachePath, 'utf-8');
   } catch {}
 
-  // 3. Download from Google's public discovery API and save to fws cache
+  // 3. Download from Google's public discovery API and save to fws cache.
+  //    Atomic write: write to a unique temp file in the same directory, then
+  //    rename(2) into place. Without this, concurrent vitest workers race —
+  //    one worker creates a partial file, another reads the empty file and
+  //    crashes with `SyntaxError: Unexpected end of JSON input`.
   const url = `${DISCOVERY_URL}/${api}/${version}/rest`;
   console.log(`Downloading discovery doc: ${api} ${version}...`);
   const res = await fetch(url);
@@ -43,7 +47,17 @@ async function readOrDownload(file: string, api: string, version: string): Promi
   const text = await res.text();
 
   await fs.mkdir(localCacheDir, { recursive: true });
-  await fs.writeFile(fwsCachePath, text);
+  const tmpPath = `${fwsCachePath}.tmp.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}`;
+  await fs.writeFile(tmpPath, text);
+  try {
+    await fs.rename(tmpPath, fwsCachePath);
+  } catch (err) {
+    // Another worker may have already renamed its temp file into place
+    // between our writeFile and our rename. That's fine — clean up our
+    // tempfile and read whatever's there now.
+    await fs.unlink(tmpPath).catch(() => {});
+    throw err;
+  }
 
   return text;
 }
