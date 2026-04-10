@@ -8,6 +8,7 @@ export interface FwsStore {
   sheets: SheetsStore;
   people: PeopleStore;
   github: GitHubStore;
+  search: SearchStore;
 }
 
 // === Gmail ===
@@ -305,4 +306,26 @@ export interface GitHubComment {
   created_at: string;
   updated_at: string;
   html_url: string;
+}
+
+// === Search ===
+
+export interface SearchStore {
+  /** Fixtures matched against query terms (case-insensitive substring on any keyword) */
+  fixtures: SearchFixture[];
+  /** Returned when no fixture matches */
+  defaultResults: SearchResult[];
+}
+
+export interface SearchFixture {
+  /** Keywords to look for in the query (case-insensitive). Match if ANY keyword appears. */
+  keywords: string[];
+  results: SearchResult[];
+}
+
+export interface SearchResult {
+  title: string;
+  link: string;
+  displayLink: string;
+  snippet: string;
 }
