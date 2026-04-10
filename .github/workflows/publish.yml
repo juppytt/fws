@@ -4,6 +4,11 @@ name: publish
 # Releases @juppytt/fws to npm with build provenance via OIDC trusted publishing
 # (no NPM_TOKEN secret required — configure on npmjs.com under the package's
 # "Trusted Publisher" settings).
+#
+# Note: this workflow does NOT re-run the full test suite. ci.yml gates every
+# PR before merge, so by the time a tag is pushed against a merge commit, all
+# tests have already passed against that exact tree. Re-running them here only
+# adds release-blocking flake risk.
 on:
   push:
     tags:
@@ -29,22 +34,13 @@ jobs:
       - name: Install fws deps
         run: npm ci
 
-      # Tests below run the full suite (unit + e2e), so install the same CLIs
-      # the ci.yml workflow installs.
-      - name: Install gws CLI (latest)
-        run: npm install -g @googleworkspace/cli
-
-      - name: Verify gh CLI
-        run: gh --version
-
-      - name: Verify openssl
-        run: openssl version
-
+      # Lightweight pre-publish sanity checks. Real test gating happens in
+      # ci.yml on the PR that introduced the merged commit.
       - name: Type check
         run: npx tsc --noEmit
 
-      - name: Run full test suite
-        run: npm test
+      - name: Verify packable tarball
+        run: npm pack --dry-run
 
       - name: Publish to npm with provenance
         run: npm publish --provenance --access public
