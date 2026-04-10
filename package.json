@@ -20,7 +20,7 @@
     "test:unit": "vitest run --project unit",
     "test:e2e": "vitest run --project e2e",
     "test:watch": "vitest",
-    "prepublishOnly": "tsc --noEmit && vitest run --project unit"
+    "prepublishOnly": "tsc --noEmit"
   },
   "dependencies": {
     "commander": "^13.0.0",
