@@ -10,8 +10,7 @@
     "bin",
     "src",
     "docs",
-    "README.md",
-    "fws-banner.png"
+    "README.md"
   ],
   "scripts": {
     "start": "tsx bin/fws.ts server start",
