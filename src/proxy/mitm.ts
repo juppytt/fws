@@ -194,95 +194,157 @@ export function startMitmProxy(mockPort: number, proxyPort: number): http.Server
 }
 
 function handleInterceptedRequest(tlsSocket: tls.TLSSocket, hostname: string, mockPort: number): void {
+  // One TLS socket can carry many HTTP/1.1 requests via keep-alive. The
+  // previous implementation handled exactly one request and then called
+  // tlsSocket.end(), which broke any client (gh, gws) that pipelined or
+  // reused the connection — the second request raced against the close
+  // and surfaced as `Post ...: EOF`. This rewrite keeps the socket open
+  // and processes requests in a loop until the client / upstream signals
+  // Connection: close.
+
   let buffer = Buffer.alloc(0);
+  let processing = false;
+  let closed = false;
 
-  const onData = (chunk: Buffer) => {
-    buffer = Buffer.concat([buffer, chunk]);
+  const closeSocket = () => {
+    if (closed) return;
+    closed = true;
+    try {
+      tlsSocket.end();
+    } catch {}
+  };
 
-    // Check if we have a complete HTTP request header
+  const writeAndClose = (resp: string) => {
+    if (closed) return;
+    try {
+      tlsSocket.write(resp);
+    } catch {}
+    closeSocket();
+  };
+
+  const tryProcessNext = () => {
+    if (processing || closed) return;
+
     const headerEnd = buffer.indexOf('\r\n\r\n');
     if (headerEnd === -1) return; // wait for more data
 
-    tlsSocket.removeListener('data', onData);
-
     const headerStr = buffer.subarray(0, headerEnd).toString('utf-8');
-    const bodyStart = buffer.subarray(headerEnd + 4);
-
     const [requestLine, ...headerLines] = headerStr.split('\r\n');
     const [method, urlPath] = requestLine.split(' ');
 
-    // Parse headers
     const headers: Record<string, string> = {};
     let contentLength = 0;
+    let clientWantsClose = false;
     for (const line of headerLines) {
       const colonIdx = line.indexOf(':');
       if (colonIdx > 0) {
         const key = line.slice(0, colonIdx).trim().toLowerCase();
         const val = line.slice(colonIdx + 1).trim();
         headers[key] = val;
-        if (key === 'content-length') contentLength = parseInt(val);
+        if (key === 'content-length') contentLength = parseInt(val) || 0;
+        else if (key === 'connection' && val.toLowerCase() === 'close') clientWantsClose = true;
       }
     }
 
-    // Collect body if present
-    const collectBody = (bodyBuf: Buffer) => {
-      // Forward to mock server
-      const mockReq = http.request({
+    // Wait for the full body before forwarding. NOTE: this proxy does not
+    // support Transfer-Encoding: chunked on the *request* side. gh and gws
+    // both buffer requests and send a Content-Length, so this is fine in
+    // practice. If a future client uses chunked we'll need to add it.
+    const bodyAvailable = buffer.length - (headerEnd + 4);
+    if (bodyAvailable < contentLength) return; // wait for more body data
+
+    const bodyBuf = buffer.subarray(headerEnd + 4, headerEnd + 4 + contentLength);
+    // Trim the consumed bytes off the buffer; anything left is part of the
+    // next pipelined request.
+    buffer = buffer.subarray(headerEnd + 4 + contentLength);
+
+    processing = true;
+    forwardRequest(method, urlPath, headers, bodyBuf, clientWantsClose);
+  };
+
+  const forwardRequest = (
+    method: string,
+    urlPath: string,
+    headers: Record<string, string>,
+    bodyBuf: Buffer,
+    clientWantsClose: boolean,
+  ) => {
+    const mockReq = http.request(
+      {
         hostname: 'localhost',
         port: mockPort,
         path: urlPath,
         method,
-        headers: {
-          ...headers,
-          host: `localhost:${mockPort}`,
-        },
-      }, (mockRes) => {
-        // Send response back through TLS socket
-        let respHeader = `HTTP/1.1 ${mockRes.statusCode} ${mockRes.statusMessage}\r\n`;
-        for (const [key, val] of Object.entries(mockRes.headers)) {
-          if (val) {
+        headers: { ...headers, host: `localhost:${mockPort}` },
+      },
+      (mockRes) => {
+        // Buffer the upstream response so we can write it as a single
+        // chunk and decide whether to close the TLS socket afterwards.
+        // For mock-server traffic the responses are small, so buffering
+        // is acceptable.
+        const chunks: Buffer[] = [];
+        mockRes.on('data', (c: Buffer) => chunks.push(c));
+        mockRes.on('end', () => {
+          if (closed) return;
+
+          const body = Buffer.concat(chunks);
+          let respHeader = `HTTP/1.1 ${mockRes.statusCode ?? 502} ${mockRes.statusMessage ?? ''}\r\n`;
+          let upstreamWantsClose = false;
+          for (const [key, val] of Object.entries(mockRes.headers)) {
+            if (val == null) continue;
             const vals = Array.isArray(val) ? val : [val];
             for (const v of vals) {
               respHeader += `${key}: ${v}\r\n`;
+              if (key.toLowerCase() === 'connection' && String(v).toLowerCase() === 'close') {
+                upstreamWantsClose = true;
+              }
             }
           }
-        }
-        respHeader += '\r\n';
+          respHeader += '\r\n';
 
-        tlsSocket.write(respHeader);
-        mockRes.pipe(tlsSocket);
-        mockRes.on('end', () => {
-          tlsSocket.end();
+          try {
+            tlsSocket.write(respHeader);
+            if (body.length > 0) tlsSocket.write(body);
+          } catch {
+            closeSocket();
+            return;
+          }
+
+          processing = false;
+
+          if (clientWantsClose || upstreamWantsClose) {
+            closeSocket();
+          } else {
+            // Defer so any newly-arrived bytes get flushed onto `buffer`
+            // before we look at it again.
+            setImmediate(tryProcessNext);
+          }
         });
-      });
+        mockRes.on('error', () => {
+          processing = false;
+          writeAndClose('HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\nConnection: close\r\n\r\n');
+        });
+      },
+    );
 
-      mockReq.on('error', () => {
-        tlsSocket.write('HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n');
-        tlsSocket.end();
-      });
+    mockReq.on('error', () => {
+      processing = false;
+      writeAndClose('HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\nConnection: close\r\n\r\n');
+    });
 
-      if (bodyBuf.length > 0) {
-        mockReq.write(bodyBuf);
-      }
-      mockReq.end();
-    };
-
-    if (contentLength > 0 && bodyStart.length < contentLength) {
-      // Need more body data
-      const remaining: Buffer[] = [bodyStart];
-      let received = bodyStart.length;
-      tlsSocket.on('data', (chunk: Buffer) => {
-        remaining.push(chunk);
-        received += chunk.length;
-        if (received >= contentLength) {
-          collectBody(Buffer.concat(remaining));
-        }
-      });
-    } else {
-      collectBody(bodyStart);
-    }
+    if (bodyBuf.length > 0) mockReq.write(bodyBuf);
+    mockReq.end();
   };
 
-  tlsSocket.on('data', onData);
-  tlsSocket.on('error', () => {});
+  tlsSocket.on('data', (chunk: Buffer) => {
+    if (closed) return;
+    buffer = Buffer.concat([buffer, chunk]);
+    tryProcessNext();
+  });
+
+  tlsSocket.on('end', () => closeSocket());
+  tlsSocket.on('close', () => {
+    closed = true;
+  });
+  tlsSocket.on('error', () => closeSocket());
 }
