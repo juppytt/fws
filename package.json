@@ -11,6 +11,8 @@
     "build": "tsc",
     "dev": "tsx bin/fws.ts",
     "test": "vitest run",
+    "test:unit": "vitest run --project unit",
+    "test:e2e": "vitest run --project e2e",
     "test:watch": "vitest"
   },
   "dependencies": {
