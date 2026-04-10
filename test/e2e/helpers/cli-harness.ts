@@ -34,6 +34,17 @@ export interface CliHarness {
     args: string[],
     extraEnv?: Record<string, string>,
   ) => Promise<{ stdout: string; stderr: string; exitCode: number }>;
+  /**
+   * Convenience for invoking gws / gh with a single string of args.
+   * Splits on whitespace but keeps JSON objects (`{...}`) and quoted strings
+   * as one argument. Mirrors the existing `harness.ts` syntax so e2e tests
+   * read the same as the in-process tests.
+   */
+  runStr: (
+    bin: string,
+    argsString: string,
+    extraEnv?: Record<string, string>,
+  ) => Promise<{ stdout: string; stderr: string; exitCode: number }>;
   /** Direct fetch against the mock server (no proxy) */
   fetch: (urlPath: string, init?: RequestInit) => Promise<Response>;
   /** Stop the daemon and clean up tmp dirs */
@@ -78,6 +89,40 @@ function runCmd(
       });
     });
   });
+}
+
+/**
+ * Split a single args string into argv. Mirrors the parser used in
+ * test/helpers/harness.ts so e2e and in-process tests stay readable in the
+ * same syntax. Keeps JSON objects (`{...}`) and quoted strings as one arg.
+ */
+function parseArgs(args: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let braceDepth = 0;
+  let inQuote: string | null = null;
+  for (const char of args) {
+    if (!inQuote && !braceDepth && (char === '"' || char === "'")) {
+      inQuote = char;
+      continue;
+    }
+    if (inQuote && char === inQuote) {
+      inQuote = null;
+      continue;
+    }
+    if (!inQuote) {
+      if (char === '{') braceDepth++;
+      if (char === '}') braceDepth--;
+    }
+    if (char === ' ' && braceDepth === 0 && !inQuote) {
+      if (current) result.push(current);
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  if (current) result.push(current);
+  return result;
 }
 
 async function waitForHealth(port: number, timeoutMs = 8000): Promise<void> {
@@ -161,6 +206,8 @@ export async function startFwsDaemon(opts: StartOptions = {}): Promise<CliHarnes
     fetch: (urlPath, init) => globalThis.fetch(`http://localhost:${info.port}${urlPath}`, init),
     run: (bin, args, extraEnv = {}) =>
       runCmd(bin, args, { ...process.env, ...proxyEnv, ...extraEnv }),
+    runStr: (bin, argsString, extraEnv = {}) =>
+      runCmd(bin, parseArgs(argsString), { ...process.env, ...proxyEnv, ...extraEnv }),
     stop: async () => {
       // Use the real CLI so we exercise the stop path too
       await runCmd('node', [fwsBin, 'server', 'stop'], env, 5000);
