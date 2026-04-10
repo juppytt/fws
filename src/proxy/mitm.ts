@@ -5,26 +5,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { hasFixtureForHost } from '../server/routes/fetch.js';
-
-const INTERCEPTED_HOSTS = [
-  // Google Workspace
-  'gmail.googleapis.com',
-  'www.googleapis.com',
-  'tasks.googleapis.com',
-  'workspaceevents.googleapis.com',
-  'docs.googleapis.com',
-  'slides.googleapis.com',
-  'chat.googleapis.com',
-  'classroom.googleapis.com',
-  'forms.googleapis.com',
-  'keep.googleapis.com',
-  'meet.googleapis.com',
-  'people.googleapis.com',
-  'sheets.googleapis.com',
-  'admin.googleapis.com',
-  // GitHub
-  'api.github.com',
-];
+import { isAllowlistedHost } from './intercepted-hosts.js';
 
 interface CertPair {
   key: string;
@@ -140,10 +121,6 @@ async function getHostCert(hostname: string): Promise<CertPair> {
   const pair = { key: keyPem, cert: certPem };
   hostCerts.set(hostname, pair);
   return pair;
-}
-
-function isAllowlistedHost(hostname: string): boolean {
-  return INTERCEPTED_HOSTS.some(h => hostname === h || hostname.endsWith('.' + h));
 }
 
 /**

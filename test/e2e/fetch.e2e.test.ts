@@ -104,4 +104,35 @@ describe('e2e: Web Fetch through real proxy', () => {
       expect(data.mock).toBe(true);
     });
   });
+
+  describe('Path collision regression (gh#15)', () => {
+    it('foreign-host fixture wins over a colliding service-route path', async () => {
+      // Register a fixture for a foreign host whose path happens to
+      // collide with the gmail route. Without the host dispatcher, the
+      // gmail route would shadow the fixture.
+      await h.fetch('/__fws/setup/fetch/fixture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: 'https://collision.test/gmail/v1/users/me/profile',
+          response: {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ source: 'fixture-not-gmail' }),
+          },
+        }),
+      });
+
+      const { stdout, stderr, exitCode } = await h.run('curl', [
+        '-sf',
+        '--proxy', `http://localhost:${h.proxyPort}`,
+        '--cacert', h.caPath,
+        'https://collision.test/gmail/v1/users/me/profile',
+      ]);
+      expect(exitCode, `curl stderr: ${stderr}`).toBe(0);
+      const data = JSON.parse(stdout);
+      expect(data.source).toBe('fixture-not-gmail');
+      expect(data.emailAddress).toBeUndefined();
+    });
+  });
 });

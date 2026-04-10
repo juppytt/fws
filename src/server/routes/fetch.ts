@@ -1,6 +1,7 @@
 import { Router, type RequestHandler } from 'express';
 import { getStore } from '../../store/index.js';
 import type { WebFetchFixture, WebFetchResponse } from '../../store/types.js';
+import { isAllowlistedHost } from '../../proxy/intercepted-hosts.js';
 
 /**
  * Web Fetch — generic HTTP/HTTPS mocking for arbitrary URLs.
@@ -85,11 +86,44 @@ export function webFetchRoutes(): Router {
 }
 
 /**
- * Catch-all middleware. Registered AFTER all the explicit service routes.
- * When the MITM proxy intercepts a host and forwards it here with
- * `X-Fws-Original-Host`, this responds with a fixture (or the hardcoded
- * default). Requests without that header are direct test fetches and
- * fall through to Express's default 404.
+ * Runs BEFORE the service routes (gmail/calendar/...). Looks at
+ * X-Fws-Original-Host on incoming requests and decides who should handle
+ * them:
+ *
+ *   - header absent: in-process test or some other direct call. Fall
+ *     through to normal routing; if nothing matches we end up at the
+ *     default 404 handler. (No change vs. before this dispatcher existed.)
+ *
+ *   - header present and points at a built-in service host
+ *     (gmail.googleapis.com, api.github.com, ...): the request really is
+ *     for one of the mocked services. Fall through so the matching
+ *     service route handles it.
+ *
+ *   - header present and points at any other host: the only reason that
+ *     host got intercepted is because there's a Web Fetch fixture for it.
+ *     Skip the service routes entirely and go straight to the Web Fetch
+ *     handler — otherwise a fixture for `https://random.test/gmail/v1/...`
+ *     would be silently shadowed by the gmail route just because the
+ *     paths happen to overlap.
+ *
+ * Mounted in app.ts BEFORE all service routes for that exact reason.
+ */
+export function webFetchHostDispatcher(): RequestHandler {
+  const catchAll = webFetchCatchAll();
+  return (req, res, next) => {
+    const originalHost = req.header('x-fws-original-host');
+    if (!originalHost) return next();
+    if (isAllowlistedHost(originalHost)) return next();
+    return catchAll(req, res, next);
+  };
+}
+
+/**
+ * Catch-all handler used by `webFetchHostDispatcher` (and previously
+ * registered as a final-fallback in app.ts). Reconstructs the canonical
+ * URL from `X-Fws-Original-Host` + `X-Fws-Original-Scheme` + the path,
+ * runs a fixture lookup, and writes the matched response. If no fixture
+ * matches we fall back to the hardcoded default response.
  */
 export function webFetchCatchAll(): RequestHandler {
   return (req, res, next) => {

@@ -130,7 +130,8 @@ Snapshots are stored in `~/.local/share/fws/snapshots/` (override with `FWS_DATA
 
 ## Documentation
 
-- [docs/cli-reference.md](docs/cli-reference.md) — CLI reference with all flags, HTTP API equivalents, and examples
+- [docs/cli-reference.md](docs/cli-reference.md) — CLI reference with all flags and examples
+- [docs/proxy.md](docs/proxy.md) — How fws routes outbound HTTP traffic (intercept rules, header conventions, path-collision handling)
 - [docs/gws-support.md](docs/gws-support.md) — Google Workspace endpoint support table
 - [docs/gh-support.md](docs/gh-support.md) — GitHub endpoint support table
 
