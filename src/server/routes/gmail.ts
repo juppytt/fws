@@ -1,8 +1,12 @@
-import { Router } from 'express';
+import { Router, raw as expressRaw } from 'express';
 import { getStore } from '../../store/index.js';
 import { generateId } from '../../util/id.js';
 
 const BASE = '/gmail/v1/users/:userId';
+// Gmail's media-upload endpoints (used by gws >= 0.22 for +send/+reply/+forward)
+// live under /upload/gmail/v1/... and POST the raw RFC822 message as the body
+// with Content-Type: message/rfc822.
+const UPLOAD_BASE = '/upload/gmail/v1/users/:userId';
 
 export function gmailRoutes(): Router {
   const r = Router();
@@ -153,6 +157,42 @@ export function gmailRoutes(): Router {
     store.gmail.profile.messagesTotal++;
     store.gmail.profile.threadsTotal++;
 
+    res.json({ id: msg.id, threadId: msg.threadId, labelIds: msg.labelIds });
+  });
+
+  // === Media upload endpoints ===
+  // Newer gws versions route +send / +reply / +reply-all / +forward through
+  // Gmail's /upload/ endpoint instead of the regular /messages/send.
+  // Verified against gws 0.16.0 (still uses /messages/send) and 0.22.5
+  // (always uses /upload/); the exact cutoff in between was not bisected.
+  // Two upload protocols are supported by Gmail:
+  //   - uploadType=media     → body is raw RFC822 (Content-Type: message/rfc822)
+  //   - uploadType=multipart → multipart/related body with two parts:
+  //       1. application/json metadata (e.g. {"threadId":"thread001"})
+  //       2. message/rfc822 raw bytes
+  // We capture the body as a Buffer regardless of Content-Type and dispatch
+  // based on the header below.
+  const rawMessageBody = expressRaw({ type: '*/*', limit: '40mb' });
+
+  r.post(`${UPLOAD_BASE}/messages/send`, rawMessageBody, (req, res) => {
+    const { rfc822, metadata } = parseUploadBody(req.body, req.headers['content-type']);
+    const threadId = metadata.threadId || (req.query.threadId as string | undefined);
+    const msg = ingestRawMessage(rfc822, ['SENT'], threadId);
+    res.json({ id: msg.id, threadId: msg.threadId, labelIds: msg.labelIds });
+  });
+
+  r.post(`${UPLOAD_BASE}/messages`, rawMessageBody, (req, res) => {
+    const { rfc822, metadata } = parseUploadBody(req.body, req.headers['content-type']);
+    const labelsParam = req.query.labelIds;
+    const labels =
+      metadata.labelIds ??
+      (Array.isArray(labelsParam)
+        ? (labelsParam as string[])
+        : labelsParam
+          ? [labelsParam as string]
+          : ['INBOX']);
+    const threadId = metadata.threadId || (req.query.threadId as string | undefined);
+    const msg = ingestRawMessage(rfc822, labels, threadId);
     res.json({ id: msg.id, threadId: msg.threadId, labelIds: msg.labelIds });
   });
 
@@ -741,6 +781,174 @@ function filterByQuery(messages: ReturnType<typeof Object.values<any>>, q: strin
       return text.includes(token.toLowerCase().replace(/"/g, ''));
     });
   });
+}
+
+interface UploadParts {
+  /** Raw RFC822 message bytes (or undefined if missing) */
+  rfc822: Buffer | undefined;
+  /** Parsed JSON metadata part (empty object if absent) */
+  metadata: { threadId?: string; labelIds?: string[] };
+}
+
+/**
+ * Parse a Gmail media-upload request body. Supports both:
+ *  - uploadType=media     → body is the raw RFC822 message
+ *  - uploadType=multipart → multipart/related with a JSON metadata part and
+ *                           a message/rfc822 part
+ * Falls back to treating the whole body as RFC822 if the content type doesn't
+ * look like multipart.
+ */
+function parseUploadBody(
+  body: Buffer | undefined,
+  contentType: string | undefined,
+): UploadParts {
+  if (!body || body.length === 0) {
+    return { rfc822: undefined, metadata: {} };
+  }
+  const ct = contentType || '';
+  const multipartMatch = ct.match(/multipart\/(?:related|mixed|form-data)\s*;\s*boundary=("?)([^";]+)\1/i);
+  if (!multipartMatch) {
+    return { rfc822: body, metadata: {} };
+  }
+  const boundary = multipartMatch[2];
+  const parts = splitMultipart(body, boundary);
+
+  let rfc822: Buffer | undefined;
+  const metadata: UploadParts['metadata'] = {};
+
+  for (const part of parts) {
+    const partType = (part.headers['content-type'] || '').toLowerCase();
+    if (partType.startsWith('application/json')) {
+      try {
+        const meta = JSON.parse(part.body.toString('utf-8'));
+        if (typeof meta.threadId === 'string') metadata.threadId = meta.threadId;
+        if (Array.isArray(meta.labelIds)) metadata.labelIds = meta.labelIds;
+      } catch {}
+    } else if (partType.startsWith('message/rfc822') || partType.startsWith('message/')) {
+      rfc822 = part.body;
+    } else if (!rfc822) {
+      // Fallback: first non-JSON part is treated as the message
+      rfc822 = part.body;
+    }
+  }
+  return { rfc822, metadata };
+}
+
+interface MultipartPart {
+  headers: Record<string, string>;
+  body: Buffer;
+}
+
+/** Minimal RFC2046 multipart splitter — enough for Gmail's two-part uploads. */
+function splitMultipart(body: Buffer, boundary: string): MultipartPart[] {
+  const delimiter = Buffer.from(`--${boundary}`);
+  const parts: MultipartPart[] = [];
+
+  let pos = 0;
+  // Find first delimiter
+  let next = body.indexOf(delimiter, pos);
+  if (next === -1) return parts;
+  pos = next + delimiter.length;
+
+  while (pos < body.length) {
+    // After the delimiter we expect either CRLF (more parts) or "--" (end)
+    if (body[pos] === 0x2d && body[pos + 1] === 0x2d) break; // closing "--"
+    // Skip the CRLF after the delimiter
+    if (body[pos] === 0x0d) pos += 2;
+    else if (body[pos] === 0x0a) pos += 1;
+
+    next = body.indexOf(delimiter, pos);
+    if (next === -1) break;
+    // The part's content goes up to (but not including) the CRLF immediately
+    // before the next delimiter.
+    let end = next;
+    if (body[end - 2] === 0x0d && body[end - 1] === 0x0a) end -= 2;
+    else if (body[end - 1] === 0x0a) end -= 1;
+
+    const partBuf = body.subarray(pos, end);
+    parts.push(parsePart(partBuf));
+    pos = next + delimiter.length;
+  }
+  return parts;
+}
+
+function parsePart(buf: Buffer): MultipartPart {
+  // Find header/body separator: \r\n\r\n or \n\n
+  let sep = buf.indexOf(Buffer.from('\r\n\r\n'));
+  let sepLen = 4;
+  if (sep === -1) {
+    sep = buf.indexOf(Buffer.from('\n\n'));
+    sepLen = 2;
+  }
+  if (sep === -1) {
+    return { headers: {}, body: buf };
+  }
+  const headerStr = buf.subarray(0, sep).toString('utf-8');
+  const body = buf.subarray(sep + sepLen);
+  const headers: Record<string, string> = {};
+  for (const line of headerStr.split(/\r?\n/)) {
+    const colonIdx = line.indexOf(':');
+    if (colonIdx > 0) {
+      headers[line.slice(0, colonIdx).trim().toLowerCase()] = line.slice(colonIdx + 1).trim();
+    }
+  }
+  return { headers, body };
+}
+
+/**
+ * Shared logic for ingesting an RFC822 raw message (from either the JSON
+ * `messages.send` body.raw field or the media upload endpoints which post the
+ * message bytes directly). Stores the message and returns it.
+ */
+function ingestRawMessage(
+  rawBody: Buffer | string | undefined,
+  labelIds: string[],
+  threadIdOverride?: string,
+) {
+  const store = getStore();
+  const id = generateId();
+  const threadId = threadIdOverride || generateId();
+  const now = Date.now();
+
+  let headers: Array<{ name: string; value: string }> = [];
+  let bodyData = '';
+  let snippet = '';
+
+  if (rawBody && (Buffer.isBuffer(rawBody) ? rawBody.length > 0 : rawBody.length > 0)) {
+    const rawText = Buffer.isBuffer(rawBody) ? rawBody.toString('utf-8') : rawBody;
+    const parsed = parseRawEmail(rawText);
+    headers = parsed.headers;
+    bodyData = Buffer.from(parsed.body).toString('base64url');
+    snippet = parsed.body.slice(0, 100);
+  } else {
+    headers = [
+      { name: 'From', value: store.gmail.profile.emailAddress },
+      { name: 'To', value: 'recipient@example.com' },
+      { name: 'Subject', value: '(no subject)' },
+    ];
+  }
+
+  const msg = {
+    id,
+    threadId,
+    labelIds,
+    snippet,
+    historyId: String(store.gmail.nextHistoryId++),
+    internalDate: String(now),
+    sizeEstimate: bodyData.length,
+    payload: {
+      partId: '',
+      mimeType: 'text/plain',
+      filename: '',
+      headers,
+      body: { size: bodyData.length, data: bodyData },
+    },
+  };
+
+  store.gmail.messages[id] = msg;
+  store.gmail.profile.messagesTotal++;
+  store.gmail.profile.threadsTotal++;
+  return msg;
 }
 
 function parseRawEmail(raw: string): { headers: Array<{ name: string; value: string }>; body: string } {

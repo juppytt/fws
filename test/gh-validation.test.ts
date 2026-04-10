@@ -108,8 +108,8 @@ describe('gh CLI validation', () => {
     });
 
     it('gh issue view 1', async () => {
-      const { stdout, exitCode } = await h.ghProxyWithRepo('issue view 1');
-      expect(exitCode).toBe(0);
+      const { stdout, stderr, exitCode } = await h.ghProxyWithRepo('issue view 1');
+      expect(exitCode, `gh stderr: ${stderr}\ngh stdout: ${stdout}`).toBe(0);
       expect(stdout).toContain('Fix login bug');
       expect(stdout).toContain('OPEN');
     });
@@ -121,8 +121,8 @@ describe('gh CLI validation', () => {
     });
 
     it('gh pr view 3', async () => {
-      const { stdout, exitCode } = await h.ghProxyWithRepo('pr view 3');
-      expect(exitCode).toBe(0);
+      const { stdout, stderr, exitCode } = await h.ghProxyWithRepo('pr view 3');
+      expect(exitCode, `gh stderr: ${stderr}\ngh stdout: ${stdout}`).toBe(0);
       expect(stdout).toContain('Fix SSO login flow');
       expect(stdout).toContain('OPEN');
     });

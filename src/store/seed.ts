@@ -40,6 +40,11 @@ function makeMessage(id: string, threadId: string, historyId: number, opts: {
         { name: 'To', value: opts.to },
         { name: 'Subject', value: opts.subject },
         { name: 'Date', value: opts.date },
+        // Newer gws +reply / +reply-all / +forward read Message-ID off the
+        // source message to populate In-Reply-To / References on the outgoing
+        // mail; without it the helper aborts with "Message is missing
+        // Message-ID header". (Verified missing-header behavior with gws 0.22.5.)
+        { name: 'Message-ID', value: `<${id}@example.com>` },
       ],
       body: {
         size: opts.body.length,
