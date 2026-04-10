@@ -147,17 +147,67 @@ describe('Web Fetch (generic HTTP/HTTPS mock)', () => {
       expect(data.source).toBe('fws-web-fetch-default');
     });
 
-    it('does NOT shadow real routes when intercepted host happens to match an existing path', async () => {
-      // Even with the original-host header set, if a real route matches
-      // the path, that route still wins (the catch-all only fires when no
-      // other route handled the request). This is the known path-collision
-      // limitation; documented separately.
+    it('allowlisted service host: real service route still handles the request', async () => {
+      // www.googleapis.com is in the built-in service allowlist, so the
+      // dispatcher lets it fall through to the normal routing chain and
+      // the search route handles it. This is the desirable behavior — a
+      // proxied gmail / search / github request should be served by its
+      // dedicated mock, not by the Web Fetch catch-all.
       const res = await h.fetch('/customsearch/v1?q=python&cx=abc', {
         headers: { 'x-fws-original-host': 'www.googleapis.com' },
       });
       expect(res.status).toBe(200);
       const data = await res.json();
       expect(data.kind).toBe('customsearch#search');
+    });
+
+    it('foreign host: fixture wins on path collision with a real service route (gh#15)', async () => {
+      // Regression for gh#15. Without the host dispatcher, this fixture
+      // would be shadowed by the gmail route because the path matches.
+      // With the dispatcher, the proxy header `random.test` is recognized
+      // as a foreign host and the request goes straight to Web Fetch.
+      await h.fetch('/__fws/setup/fetch/fixture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: 'https://random.test/gmail/v1/users/me/profile',
+          response: {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ custom: 'yes', source: 'fixture' }),
+          },
+        }),
+      });
+
+      const res = await h.fetch('/gmail/v1/users/me/profile', {
+        headers: {
+          'x-fws-original-host': 'random.test',
+          'x-fws-original-scheme': 'https',
+        },
+      });
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.custom).toBe('yes');
+      expect(data.source).toBe('fixture');
+      // Crucially, NOT the seeded gmail profile (testuser@example.com)
+      expect(data.emailAddress).toBeUndefined();
+    });
+
+    it('foreign host with no fixture for the path: hardcoded default fires (not the service route)', async () => {
+      // Even when the path collides with a real service route, a foreign
+      // host with no specific fixture for that path gets the Web Fetch
+      // default response, NOT the service route's mock data.
+      // (example.com is seeded with a host-only fixture, so any path on
+      // example.com gets the default unless a more specific fixture exists.)
+      const res = await h.fetch('/gmail/v1/users/me/profile', {
+        headers: {
+          'x-fws-original-host': 'totally.unrelated.test',
+          'x-fws-original-scheme': 'https',
+        },
+      });
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.source).toBe('fws-web-fetch-default');
     });
   });
 });
