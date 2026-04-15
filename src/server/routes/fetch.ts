@@ -76,6 +76,7 @@ export function webFetchRoutes(): Router {
         status: body.response.status,
         headers: body.response.headers,
         body: body.response.body,
+        bodyEncoding: body.response.bodyEncoding,
       },
     };
     store.webFetch.fixtures.push(fixture);
@@ -143,7 +144,10 @@ export function webFetchCatchAll(): RequestHandler {
         res.setHeader(k, v);
       }
     }
-    res.status(response.status).send(response.body);
+    const payload = response.bodyEncoding === 'base64'
+      ? Buffer.from(response.body, 'base64')
+      : response.body;
+    res.status(response.status).send(payload);
   };
 }
 
