@@ -79,8 +79,17 @@ export function webFetchRoutes(): Router {
         bodyEncoding: body.response.bodyEncoding,
       },
     };
-    store.webFetch.fixtures.push(fixture);
-    res.json({ status: 'added', count: store.webFetch.fixtures.length });
+    // Upsert: replace existing fixture with same URL/host+method, otherwise append.
+    const idx = store.webFetch.fixtures.findIndex(f =>
+      (fixture.url && f.url === fixture.url && (f.method ?? '') === (fixture.method ?? '')) ||
+      (fixture.host && !fixture.url && f.host === fixture.host && !f.url && (f.method ?? '') === (fixture.method ?? '')),
+    );
+    if (idx >= 0) {
+      store.webFetch.fixtures[idx] = fixture;
+    } else {
+      store.webFetch.fixtures.push(fixture);
+    }
+    res.json({ status: idx >= 0 ? 'replaced' : 'added', count: store.webFetch.fixtures.length });
   });
 
   return r;

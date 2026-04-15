@@ -132,6 +132,13 @@ export function controlRoutes(): Router {
     res.json({ id });
   });
 
+  // Clear only web fetch fixtures (preserves gmail/calendar/drive/etc.)
+  r.post('/__fws/setup/fetch/reset', (_req, res) => {
+    const store = getStore();
+    store.webFetch.fixtures = [];
+    res.json({ status: 'reset', scope: 'webFetch' });
+  });
+
   return r;
 }
 
