@@ -67,6 +67,48 @@ describe('Web Fetch (generic HTTP/HTTPS mock)', () => {
       expect(JSON.parse(data.response.body).injected).toBe(true);
     });
 
+    it('round-trips a base64-encoded binary fixture through the catch-all', async () => {
+      // 4 bytes of binary data that aren't valid UTF-8
+      const binaryBuf = Buffer.from([0x00, 0x01, 0xff, 0xfe]);
+      const b64 = binaryBuf.toString('base64');
+
+      const setup = await h.fetch('/__fws/setup/fetch/fixture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: 'https://binary.test/image.png',
+          response: {
+            status: 200,
+            headers: { 'content-type': 'image/png' },
+            body: b64,
+            bodyEncoding: 'base64',
+          },
+        }),
+      });
+      expect(setup.status).toBe(200);
+
+      // Direct API returns the raw fixture metadata (body stays base64)
+      const meta = await h.fetch(
+        '/__fws/fetch?url=' + encodeURIComponent('https://binary.test/image.png'),
+      );
+      const metaData = await meta.json();
+      expect(metaData.matched).toBe('url');
+      expect(metaData.response.bodyEncoding).toBe('base64');
+      expect(metaData.response.body).toBe(b64);
+
+      // Catch-all (proxy path) decodes to real binary
+      const res = await h.fetch('/image.png', {
+        headers: {
+          'x-fws-original-host': 'binary.test',
+          'x-fws-original-scheme': 'https',
+        },
+      });
+      expect(res.status).toBe(200);
+      expect(res.headers.get('content-type')).toBe('image/png');
+      const arrayBuf = await res.arrayBuffer();
+      expect(Buffer.from(arrayBuf)).toEqual(binaryBuf);
+    });
+
     it('rejects fixtures missing url and host', async () => {
       const res = await h.fetch('/__fws/setup/fetch/fixture', {
         method: 'POST',

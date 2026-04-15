@@ -368,4 +368,6 @@ export interface WebFetchResponse {
   headers?: Record<string, string>;
   /** Response body as a string. Use base64 + a Content-Encoding/Content-Type header for binary. */
   body: string;
+  /** When set to 'base64', the body is base64-encoded and will be decoded to a Buffer before sending. */
+  bodyEncoding?: 'base64';
 }
