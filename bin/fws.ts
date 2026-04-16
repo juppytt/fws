@@ -67,7 +67,7 @@ serverCmd
       await generateConfigDir(port, configDir);
 
       // Generate CA cert for MITM proxy
-      const { caPath } = await generateCACert(getDataDir());
+      const { caPath, bundlePath } = await generateCACert(getDataDir());
 
       const app = createApp();
       const server: Server = await new Promise((resolve) => {
@@ -80,7 +80,7 @@ serverCmd
 
       await ensureDir(getDataDir());
       await fs.writeFile(getServerInfoPath(), JSON.stringify({
-        port, proxyPort, pid: process.pid, caPath,
+        port, proxyPort, pid: process.pid, caPath, bundlePath,
       }));
 
       const shutdown = () => {
@@ -144,7 +144,7 @@ serverCmd
       // Read server info to get caPath and proxyPort
       const serverInfo = JSON.parse(await fs.readFile(getServerInfoPath(), 'utf-8').catch(() => '{}'));
       const proxyPort = serverInfo.proxyPort || port + 1;
-      const caPath = serverInfo.caPath || path.join(getDataDir(), 'certs', 'ca.crt');
+      const bundlePath = serverInfo.bundlePath || path.join(getDataDir(), 'certs', 'ca-bundle.crt');
 
       console.log(`fws server started on port ${port} (pid ${child.pid})\n`);
       console.log(`Run this to configure your shell:\n`);
@@ -153,7 +153,7 @@ serverCmd
       console.log(`  export GOOGLE_WORKSPACE_CLI_CONFIG_DIR=${configDir}`);
       console.log(`  export GOOGLE_WORKSPACE_CLI_TOKEN=fake`);
       console.log(`  export HTTPS_PROXY=http://localhost:${proxyPort}`);
-      console.log(`  export SSL_CERT_FILE=${caPath}`);
+      console.log(`  export SSL_CERT_FILE=${bundlePath}`);
       console.log(`  export GH_TOKEN=fake`);
       console.log(`  export GH_REPO=testuser/my-project\n`);
       console.log(`Then try:\n`);
@@ -192,13 +192,13 @@ serverCmd
     try {
       const info = JSON.parse(await fs.readFile(getServerInfoPath(), 'utf-8'));
       const configDir = path.join(getDataDir(), 'config');
-      const caPath = info.caPath || path.join(getDataDir(), 'certs', 'ca.crt');
+      const bundlePath = info.bundlePath || path.join(getDataDir(), 'certs', 'ca-bundle.crt');
       const proxyPort = info.proxyPort || info.port + 1;
 
       console.log(`export GOOGLE_WORKSPACE_CLI_CONFIG_DIR=${configDir}`);
       console.log(`export GOOGLE_WORKSPACE_CLI_TOKEN=fake`);
       console.log(`export HTTPS_PROXY=http://localhost:${proxyPort}`);
-      console.log(`export SSL_CERT_FILE=${caPath}`);
+      console.log(`export SSL_CERT_FILE=${bundlePath}`);
       console.log(`export GH_TOKEN=fake`);
       console.log(`export GH_REPO=testuser/my-project`);
     } catch {

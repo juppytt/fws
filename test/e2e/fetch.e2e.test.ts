@@ -90,6 +90,25 @@ describe('e2e: Web Fetch through real proxy', () => {
       // NOT get a mocked response back.
       expect(exitCode).not.toBe(0);
     });
+
+    it('passthrough TLS verification succeeds with ca-bundle (real host)', async () => {
+      // The ca-bundle.crt includes system CAs, so passthrough to real
+      // HTTPS hosts should pass TLS verification. We hit a public
+      // endpoint that always responds without needing an API key.
+      const { stdout, exitCode } = await h.run('curl', [
+        '-s',
+        '-o', '/dev/null',
+        '-w', '%{http_code}',
+        '--max-time', '5',
+        '--proxy', `http://localhost:${h.proxyPort}`,
+        '--cacert', h.caPath,
+        'https://api.openai.com/v1/models',
+      ]);
+      // 401 (no API key) proves TLS handshake succeeded — the request
+      // reached the real server and got an auth error, not a cert error.
+      expect(exitCode).toBe(0);
+      expect(stdout.trim()).toBe('401');
+    });
   });
 
   describe('Plain HTTP', () => {

@@ -177,21 +177,24 @@ export async function startFwsDaemon(opts: StartOptions = {}): Promise<CliHarnes
 
   await waitForHealth(port);
 
-  // Read server.json to discover proxyPort and caPath
+  // Read server.json to discover proxyPort and bundlePath
   const serverInfoPath = path.join(dataDir, 'server.json');
   const info = JSON.parse(await readFile(serverInfoPath, 'utf-8')) as {
     port: number;
     proxyPort: number;
     pid: number;
     caPath: string;
+    bundlePath: string;
   };
+
+  const bundlePath = info.bundlePath || info.caPath;
 
   const proxyEnv: Record<string, string> = {
     FWS_DATA_DIR: dataDir,
     GOOGLE_WORKSPACE_CLI_CONFIG_DIR: configDir,
     GOOGLE_WORKSPACE_CLI_TOKEN: 'fake',
     HTTPS_PROXY: `http://localhost:${info.proxyPort}`,
-    SSL_CERT_FILE: info.caPath,
+    SSL_CERT_FILE: bundlePath,
     GH_TOKEN: 'fake',
     GH_REPO: 'testuser/my-project',
   };
@@ -199,7 +202,7 @@ export async function startFwsDaemon(opts: StartOptions = {}): Promise<CliHarnes
   return {
     port: info.port,
     proxyPort: info.proxyPort,
-    caPath: info.caPath,
+    caPath: bundlePath,
     configDir,
     dataDir,
     proxyEnv,
