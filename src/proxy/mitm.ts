@@ -31,12 +31,27 @@ function generateCA(): CertPair {
   };
 }
 
-export async function generateCACert(dataDir: string): Promise<{ caPath: string; keyPath: string }> {
+// Well-known system CA bundle locations (checked in order).
+const SYSTEM_CA_PATHS = [
+  '/etc/ssl/certs/ca-certificates.crt',   // Debian/Ubuntu/Arch
+  '/etc/pki/tls/certs/ca-bundle.crt',     // RHEL/Fedora
+  '/etc/ssl/cert.pem',                     // Alpine/macOS
+];
+
+async function findSystemCABundle(): Promise<string | null> {
+  for (const p of SYSTEM_CA_PATHS) {
+    try { await fs.access(p); return p; } catch {}
+  }
+  return null;
+}
+
+export async function generateCACert(dataDir: string): Promise<{ caPath: string; keyPath: string; bundlePath: string }> {
   const certDir = path.join(dataDir, 'certs');
   await fs.mkdir(certDir, { recursive: true });
 
   const caPath = path.join(certDir, 'ca.crt');
   const keyPath = path.join(certDir, 'ca.key');
+  const bundlePath = path.join(certDir, 'ca-bundle.crt');
 
   // Check if CA already exists
   try {
@@ -46,24 +61,32 @@ export async function generateCACert(dataDir: string): Promise<{ caPath: string;
       cert: await fs.readFile(caPath, 'utf-8'),
       key: await fs.readFile(keyPath, 'utf-8'),
     };
-    return { caPath, keyPath };
-  } catch {}
+  } catch {
+    // Generate new CA using openssl
+    const { execFileSync } = await import('node:child_process');
+    execFileSync('openssl', [
+      'req', '-x509', '-newkey', 'rsa:2048',
+      '-keyout', keyPath, '-out', caPath,
+      '-days', '3650', '-nodes',
+      '-subj', '/CN=fws-mock-ca',
+    ], { stdio: 'pipe' });
 
-  // Generate new CA using openssl
-  const { execFileSync } = await import('node:child_process');
-  execFileSync('openssl', [
-    'req', '-x509', '-newkey', 'rsa:2048',
-    '-keyout', keyPath, '-out', caPath,
-    '-days', '3650', '-nodes',
-    '-subj', '/CN=fws-mock-ca',
-  ], { stdio: 'pipe' });
+    caCert = {
+      cert: await fs.readFile(caPath, 'utf-8'),
+      key: await fs.readFile(keyPath, 'utf-8'),
+    };
+  }
 
-  caCert = {
-    cert: await fs.readFile(caPath, 'utf-8'),
-    key: await fs.readFile(keyPath, 'utf-8'),
-  };
+  // Build a combined bundle: FWS CA + system CAs, so that passthrough
+  // hosts (real internet) can be verified alongside MITM-intercepted ones.
+  const systemCA = await findSystemCABundle();
+  const parts = [caCert.cert.trimEnd()];
+  if (systemCA) {
+    parts.push(await fs.readFile(systemCA, 'utf-8'));
+  }
+  await fs.writeFile(bundlePath, parts.join('\n'));
 
-  return { caPath, keyPath };
+  return { caPath, keyPath, bundlePath };
 }
 
 async function getHostCert(hostname: string): Promise<CertPair> {

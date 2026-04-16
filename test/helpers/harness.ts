@@ -37,7 +37,7 @@ export async function createTestHarness(): Promise<TestHarness> {
 
   // MITM proxy for helper commands
   const dataDir = await mkdtemp(path.join(tmpdir(), 'fws-test-data-'));
-  const { caPath } = await generateCACert(dataDir);
+  const { bundlePath } = await generateCACert(dataDir);
   const proxyServer = startMitmProxy(port, 0); // random port
   const proxyPort = (proxyServer.address() as any).port as number;
 
@@ -50,7 +50,7 @@ export async function createTestHarness(): Promise<TestHarness> {
   const proxyEnv = {
     ...baseEnv,
     HTTPS_PROXY: `http://localhost:${proxyPort}`,
-    SSL_CERT_FILE: caPath,
+    SSL_CERT_FILE: bundlePath,
   };
 
   const gwsPath = process.env.GWS_PATH || 'gws';
