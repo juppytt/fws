@@ -8,6 +8,10 @@ A local mock server for testing CLI tools and agents against fake web services w
 
 Built with [Claude Code](https://claude.ai/code).
 
+🦀 Powering [PinchBench](https://github.com/pinchbench/skill), the OpenClaw benchmarking framework! fws provides the fake web environment that makes realistic agent evaluation possible.
+
+> **Note:** OpenClaw's `web_fetch` tool does not currently support proxy routing, so fws cannot intercept `web_fetch` requests. This is a known upstream issue — see [openclaw#63565](https://github.com/openclaw/openclaw/issues/63565) for details. Other network actions (`web_search` tool, `curl`, etc.) work fine through fws.
+
 ## How it works
 
 fws runs a local HTTP mock server (port 4100) and a MITM CONNECT proxy (port 4101) that intercepts HTTPS traffic to `*.googleapis.com` and `api.github.com`, forwarding it to the mock server.
