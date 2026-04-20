@@ -54,6 +54,7 @@ export function controlRoutes(): Router {
           { name: 'To', value: to || userEmail },
           { name: 'Subject', value: subject || '(no subject)' },
           { name: 'Date', value: now },
+          { name: 'Message-ID', value: `<${id}@example.com>` },
         ],
         body: {
           size: (body || '').length,

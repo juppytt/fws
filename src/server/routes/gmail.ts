@@ -93,6 +93,7 @@ export function gmailRoutes(): Router {
         { name: 'From', value: store.gmail.profile.emailAddress },
         { name: 'To', value: 'recipient@example.com' },
         { name: 'Subject', value: '(no subject)' },
+        { name: 'Message-ID', value: `<${id}@example.com>` },
       ];
     }
 
@@ -925,6 +926,7 @@ function ingestRawMessage(
       { name: 'From', value: store.gmail.profile.emailAddress },
       { name: 'To', value: 'recipient@example.com' },
       { name: 'Subject', value: '(no subject)' },
+      { name: 'Message-ID', value: `<${id}@example.com>` },
     ];
   }
 
