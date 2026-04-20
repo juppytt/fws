@@ -7,8 +7,12 @@ on:
 
 jobs:
   unit:
-    name: unit tests
+    name: unit tests (gws ${{ matrix.gws-version }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        gws-version: ['0.16.0', '0.22.5', 'latest']
     steps:
       - uses: actions/checkout@v4
 
@@ -22,8 +26,11 @@ jobs:
 
       # Required by tests in test/gws-validation.test.ts and test/calendar.test.ts
       # which spawn the real `gws` binary against the in-process mock server.
-      - name: Install gws CLI (latest)
-        run: npm install -g @googleworkspace/cli
+      - name: Install gws CLI (${{ matrix.gws-version }})
+        run: npm install -g @googleworkspace/cli@${{ matrix.gws-version }}
+
+      - name: Verify gws version
+        run: gws --version
 
       # `gh` is preinstalled on ubuntu-latest runners, but pin to latest to be safe.
       - name: Verify gh CLI
@@ -36,8 +43,12 @@ jobs:
         run: npm run test:unit
 
   e2e:
-    name: e2e tests (real daemon)
+    name: e2e tests (real daemon, gws ${{ matrix.gws-version }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        gws-version: ['0.16.0', '0.22.5', 'latest']
     steps:
       - uses: actions/checkout@v4
 
@@ -49,8 +60,11 @@ jobs:
       - name: Install fws deps
         run: npm ci
 
-      - name: Install gws CLI (latest)
-        run: npm install -g @googleworkspace/cli
+      - name: Install gws CLI (${{ matrix.gws-version }})
+        run: npm install -g @googleworkspace/cli@${{ matrix.gws-version }}
+
+      - name: Verify gws version
+        run: gws --version
 
       - name: Verify gh CLI
         run: gh --version
