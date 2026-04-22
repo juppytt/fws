@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { getStore, resetStore, loadStore, serializeStore } from '../../store/index.js';
 import { generateId, generateEtag } from '../../util/id.js';
+import { encodeGmailBase64 } from '../../util/base64.js';
 
 export function controlRoutes(): Router {
   const r = Router();
@@ -58,7 +59,7 @@ export function controlRoutes(): Router {
         ],
         body: {
           size: (body || '').length,
-          data: Buffer.from(body || '').toString('base64url'),
+          data: encodeGmailBase64(body || ''),
         },
       },
     };

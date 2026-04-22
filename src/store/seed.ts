@@ -1,5 +1,6 @@
 import type { FwsStore, GmailLabel, GmailMessage, CalendarEvent, DriveFile, TaskList, Task, Spreadsheet, Person, ContactGroup, GitHubStore, SearchStore, WebFetchStore } from './types.js';
 import { generateEtag, generateId } from '../util/id.js';
+import { encodeGmailBase64 } from '../util/base64.js';
 
 // Sample IDs for seeded Gmail messages / threads. Generated once per process
 // so they look like runtime-created IDs (which use generateId via nanoid)
@@ -56,7 +57,7 @@ function makeMessage(id: string, threadId: string, historyId: number, opts: {
       ],
       body: {
         size: opts.body.length,
-        data: Buffer.from(opts.body).toString('base64url'),
+        data: encodeGmailBase64(opts.body),
       },
     },
   };
