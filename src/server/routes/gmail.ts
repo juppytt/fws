@@ -1,6 +1,7 @@
 import { Router, raw as expressRaw } from 'express';
 import { getStore } from '../../store/index.js';
 import { generateId } from '../../util/id.js';
+import { encodeGmailBase64 } from '../../util/base64.js';
 
 const BASE = '/gmail/v1/users/:userId';
 // Gmail's media-upload endpoints (used by gws >= 0.22 for +send/+reply/+forward)
@@ -86,7 +87,7 @@ export function gmailRoutes(): Router {
       const rawText = Buffer.from(req.body.raw, 'base64url').toString('utf-8');
       const parsed = parseRawEmail(rawText);
       headers = parsed.headers;
-      bodyData = Buffer.from(parsed.body).toString('base64url');
+      bodyData = encodeGmailBase64(parsed.body);
       snippet = parsed.body.slice(0, 100);
     } else {
       headers = [
@@ -149,7 +150,7 @@ export function gmailRoutes(): Router {
       const rawText = Buffer.from(req.body.raw, 'base64url').toString('utf-8');
       const parsed = parseRawEmail(rawText);
       msg.payload.headers = parsed.headers;
-      msg.payload.body = { size: parsed.body.length, data: Buffer.from(parsed.body).toString('base64url') };
+      msg.payload.body = { size: parsed.body.length, data: encodeGmailBase64(parsed.body) };
       msg.snippet = parsed.body.slice(0, 100);
       msg.sizeEstimate = parsed.body.length;
     }
@@ -407,7 +408,7 @@ export function gmailRoutes(): Router {
       const rawText = Buffer.from(req.body.raw, 'base64url').toString('utf-8');
       const parsed = parseRawEmail(rawText);
       msg.payload.headers = parsed.headers;
-      msg.payload.body = { size: parsed.body.length, data: Buffer.from(parsed.body).toString('base64url') };
+      msg.payload.body = { size: parsed.body.length, data: encodeGmailBase64(parsed.body) };
       msg.snippet = parsed.body.slice(0, 100);
       msg.sizeEstimate = parsed.body.length;
     }
@@ -470,7 +471,7 @@ export function gmailRoutes(): Router {
     }
 
     // Return fake attachment data as fallback
-    const fakeData = Buffer.from('fake attachment content').toString('base64url');
+    const fakeData = encodeGmailBase64('fake attachment content');
     res.json({
       attachmentId: req.params.id,
       size: 23,
@@ -538,7 +539,7 @@ export function gmailRoutes(): Router {
       const rawText = Buffer.from(raw, 'base64url').toString('utf-8');
       const parsed = parseRawEmail(rawText);
       msg.payload.headers = parsed.headers;
-      msg.payload.body = { size: parsed.body.length, data: Buffer.from(parsed.body).toString('base64url') };
+      msg.payload.body = { size: parsed.body.length, data: encodeGmailBase64(parsed.body) };
       msg.snippet = parsed.body.slice(0, 100);
       msg.sizeEstimate = parsed.body.length;
     }
@@ -567,7 +568,7 @@ export function gmailRoutes(): Router {
       const rawText = Buffer.from(raw, 'base64url').toString('utf-8');
       const parsed = parseRawEmail(rawText);
       msg.payload.headers = parsed.headers;
-      msg.payload.body = { size: parsed.body.length, data: Buffer.from(parsed.body).toString('base64url') };
+      msg.payload.body = { size: parsed.body.length, data: encodeGmailBase64(parsed.body) };
       msg.snippet = parsed.body.slice(0, 100);
     }
 
@@ -919,7 +920,7 @@ function ingestRawMessage(
     const rawText = Buffer.isBuffer(rawBody) ? rawBody.toString('utf-8') : rawBody;
     const parsed = parseRawEmail(rawText);
     headers = parsed.headers;
-    bodyData = Buffer.from(parsed.body).toString('base64url');
+    bodyData = encodeGmailBase64(parsed.body);
     snippet = parsed.body.slice(0, 100);
   } else {
     headers = [
