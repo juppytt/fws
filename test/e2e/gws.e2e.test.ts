@@ -31,6 +31,26 @@ describe('e2e: gws CLI against real daemon', () => {
   // ===== Gmail =====
 
   describe('gmail', () => {
+    // Seed IDs are generated randomly by the daemon process, so fetch them
+    // via the list endpoint once and reuse for get/reply/forward tests.
+    let seedMessageId: string;
+    let seedThreadId: string;
+
+    beforeAll(async () => {
+      const { stdout, stderr, exitCode } = await h.runStr(
+        'gws', 'gmail users messages list --params {"userId":"me"}',
+      );
+      expect(exitCode, stderr).toBe(0);
+      const data = JSON.parse(stdout);
+      expect(data.messages.length).toBeGreaterThan(0);
+      const { stdout: getOut } = await h.runStr(
+        'gws', `gmail users messages get --params {"userId":"me","id":"${data.messages[0].id}"}`,
+      );
+      const msg = JSON.parse(getOut);
+      seedMessageId = msg.id;
+      seedThreadId = msg.threadId;
+    });
+
     it('users getProfile', async () => {
       const { stdout, stderr, exitCode } = await h.runStr(
         'gws', 'gmail users getProfile --params {"userId":"me"}',
@@ -75,11 +95,11 @@ describe('e2e: gws CLI against real daemon', () => {
 
     it('users messages get', async () => {
       const { stdout, stderr, exitCode } = await h.runStr(
-        'gws', 'gmail users messages get --params {"userId":"me","id":"msg001"}',
+        'gws', `gmail users messages get --params {"userId":"me","id":"${seedMessageId}"}`,
       );
       expect(exitCode, stderr).toBe(0);
       const data = JSON.parse(stdout);
-      expect(data.id).toBe('msg001');
+      expect(data.id).toBe(seedMessageId);
       expect(data.payload.headers.some((h: any) => h.name === 'Subject')).toBe(true);
     });
 
@@ -117,30 +137,30 @@ describe('e2e: gws CLI against real daemon', () => {
 
       it('+reply', async () => {
         const { stdout, stderr, exitCode } = await h.runStr(
-          'gws', 'gmail +reply --message-id msg001 --body "E2E reply"',
+          'gws', `gmail +reply --message-id ${seedMessageId} --body "E2E reply"`,
         );
         expect(exitCode, stderr).toBe(0);
         const data = JSON.parse(stdout);
         expect(data.id).toBeTruthy();
-        expect(data.threadId).toBe('thread001');
+        expect(data.threadId).toBe(seedThreadId);
       });
 
       it('+reply-all', async () => {
         const { stdout, stderr, exitCode } = await h.runStr(
-          'gws', 'gmail +reply-all --message-id msg001 --body "E2E reply-all"',
+          'gws', `gmail +reply-all --message-id ${seedMessageId} --body "E2E reply-all"`,
         );
         expect(exitCode, stderr).toBe(0);
         const data = JSON.parse(stdout);
-        expect(data.threadId).toBe('thread001');
+        expect(data.threadId).toBe(seedThreadId);
       });
 
       it('+forward', async () => {
         const { stdout, stderr, exitCode } = await h.runStr(
-          'gws', 'gmail +forward --message-id msg001 --to carol@example.com --body "E2E fwd"',
+          'gws', `gmail +forward --message-id ${seedMessageId} --to carol@example.com --body "E2E fwd"`,
         );
         expect(exitCode, stderr).toBe(0);
         const data = JSON.parse(stdout);
-        expect(data.threadId).toBe('thread001');
+        expect(data.threadId).toBe(seedThreadId);
       });
     });
   });

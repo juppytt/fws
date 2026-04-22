@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createTestHarness, type TestHarness } from './helpers/harness.js';
+import { SAMPLE_GMAIL_MESSAGE_IDS } from '../src/store/seed.js';
 
 describe('Gmail', () => {
   let h: TestHarness;
@@ -66,7 +67,7 @@ describe('Gmail', () => {
       const res = await h.fetch('/gmail/v1/users/me/messages');
       const data = await res.json();
       expect(data.messages.length).toBe(5);
-      expect(data.messages.some((m: any) => m.id === 'msg001')).toBe(true);
+      expect(data.messages.some((m: any) => m.id === SAMPLE_GMAIL_MESSAGE_IDS[0])).toBe(true);
     });
 
     it('setup adds a message then list returns it', async () => {

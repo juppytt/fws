@@ -1,5 +1,13 @@
 import type { FwsStore, GmailLabel, GmailMessage, CalendarEvent, DriveFile, TaskList, Task, Spreadsheet, Person, ContactGroup, GitHubStore, SearchStore, WebFetchStore } from './types.js';
-import { generateEtag } from '../util/id.js';
+import { generateEtag, generateId } from '../util/id.js';
+
+// Sample IDs for seeded Gmail messages / threads. Generated once per process
+// so they look like runtime-created IDs (which use generateId via nanoid)
+// instead of structured placeholders like "msg001". Tests that need to
+// reference a specific seed entry should import these constants rather than
+// hardcoding the old values.
+export const SAMPLE_GMAIL_MESSAGE_IDS: readonly string[] = Array.from({ length: 5 }, () => generateId());
+export const SAMPLE_GMAIL_THREAD_IDS: readonly string[] = Array.from({ length: 5 }, () => generateId());
 
 const SYSTEM_LABELS: GmailLabel[] = [
   { id: 'INBOX', name: 'INBOX', type: 'system' },
@@ -107,31 +115,31 @@ export function createSeedStore(): FwsStore {
   // --- Sample emails ---
   const messages: Record<string, GmailMessage> = {};
   const sampleMessages = [
-    makeMessage('msg001', 'thread001', 1001, {
+    makeMessage(SAMPLE_GMAIL_MESSAGE_IDS[0], SAMPLE_GMAIL_THREAD_IDS[0], 1001, {
       from: 'alice@company.com', to: DEFAULT_EMAIL,
       subject: 'Q3 Planning Meeting',
       body: 'Hi, let\'s meet tomorrow at 2pm to discuss Q3 planning. I\'ve shared the agenda doc in Drive.',
       labels: ['INBOX', 'UNREAD', 'IMPORTANT'], date: '2026-04-07T09:00:00Z',
     }),
-    makeMessage('msg002', 'thread002', 1002, {
+    makeMessage(SAMPLE_GMAIL_MESSAGE_IDS[1], SAMPLE_GMAIL_THREAD_IDS[1], 1002, {
       from: 'bob@company.com', to: DEFAULT_EMAIL,
       subject: 'Code Review: auth refactor PR #42',
       body: 'Please review the auth middleware refactor when you get a chance. The PR is ready.',
       labels: ['INBOX', 'UNREAD'], date: '2026-04-07T10:30:00Z',
     }),
-    makeMessage('msg003', 'thread003', 1003, {
+    makeMessage(SAMPLE_GMAIL_MESSAGE_IDS[2], SAMPLE_GMAIL_THREAD_IDS[2], 1003, {
       from: 'notifications@github.com', to: DEFAULT_EMAIL,
       subject: '[project/repo] CI pipeline failed on main',
       body: 'Build #1234 failed. See details: https://github.com/project/repo/actions/runs/1234',
       labels: ['INBOX', 'UNREAD', 'CATEGORY_UPDATES'], date: '2026-04-07T11:00:00Z',
     }),
-    makeMessage('msg004', 'thread004', 1004, {
+    makeMessage(SAMPLE_GMAIL_MESSAGE_IDS[3], SAMPLE_GMAIL_THREAD_IDS[3], 1004, {
       from: DEFAULT_EMAIL, to: 'alice@company.com',
       subject: 'Re: Project proposal',
       body: 'Looks good to me. Let\'s proceed with option B as discussed.',
       labels: ['SENT'], date: '2026-04-06T16:00:00Z',
     }),
-    makeMessage('msg005', 'thread005', 1005, {
+    makeMessage(SAMPLE_GMAIL_MESSAGE_IDS[4], SAMPLE_GMAIL_THREAD_IDS[4], 1005, {
       from: 'hr@company.com', to: DEFAULT_EMAIL,
       subject: 'Reminder: Submit timesheet by Friday',
       body: 'Please submit your timesheet for this week by end of day Friday.',
