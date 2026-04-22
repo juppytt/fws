@@ -1,6 +1,34 @@
 import { Router } from 'express';
 import { getStore } from '../../store/index.js';
+import type { GitHubComment } from '../../store/types.js';
 import { generateId } from '../../util/id.js';
+
+// Shared shape builders keep the issue-view and pr-view GraphQL paths in lockstep.
+// gh's Go client nil-derefs on missing fields (see issue #26), so every path that
+// returns a comments connection must go through these helpers.
+function buildCommentNode(c: GitHubComment) {
+  return {
+    id: `C_${c.id}`,
+    author: { login: c.user.login, id: `U_${c.user.id}`, name: c.user.login },
+    authorAssociation: 'NONE',
+    body: c.body,
+    createdAt: c.created_at,
+    includesCreatedEdit: false,
+    isMinimized: false,
+    minimizedReason: '',
+    reactionGroups: [],
+    url: c.html_url,
+    viewerDidAuthor: false,
+  };
+}
+
+function buildCommentsConnection(comments: GitHubComment[]) {
+  return {
+    nodes: comments.map(buildCommentNode),
+    pageInfo: { hasNextPage: false, endCursor: null },
+    totalCount: comments.length,
+  };
+}
 
 export function githubRoutes(): Router {
   const r = Router();
@@ -62,23 +90,7 @@ export function githubRoutes(): Router {
               assignees: { nodes: [], totalCount: 0 },
               labels: { nodes: [], totalCount: 0 },
               milestone: null,
-              comments: {
-                nodes: comments.map(c => ({
-                  id: `C_${c.id}`,
-                  author: { login: c.user.login, id: `U_${c.user.id}`, name: c.user.login },
-                  authorAssociation: 'NONE',
-                  body: c.body,
-                  createdAt: c.created_at,
-                  includesCreatedEdit: false,
-                  isMinimized: false,
-                  minimizedReason: '',
-                  reactionGroups: [],
-                  url: c.html_url,
-                  viewerDidAuthor: false,
-                })),
-                pageInfo: { hasNextPage: false, endCursor: null },
-                totalCount: comments.length,
-              },
+              comments: buildCommentsConnection(comments),
               reactionGroups: [],
               commits: { totalCount: 1 },
               statusCheckRollup: { nodes: [{ commit: { statusCheckRollup: { contexts: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } } } }] },
@@ -129,19 +141,7 @@ export function githubRoutes(): Router {
                   totalCount: isIssue ? (issue!.labels || []).length : 0,
                 },
                 reactionGroups: [],
-                comments: {
-                  nodes: comments.slice(-1).map(c => ({
-                    author: { login: c.user.login, id: `U_${c.user.id}`, name: c.user.login },
-                    authorAssociation: 'NONE',
-                    body: c.body,
-                    createdAt: c.created_at,
-                    includesCreatedEdit: false,
-                    isMinimized: false,
-                    minimizedReason: '',
-                    reactionGroups: [],
-                  })),
-                  totalCount: comments.length,
-                },
+                comments: buildCommentsConnection(comments),
                 // PR-specific fields
                 ...(pull ? {
                   headRefName: pull.head.ref,

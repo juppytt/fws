@@ -114,6 +114,12 @@ describe('gh CLI validation', () => {
       expect(stdout).toContain('OPEN');
     });
 
+    it('gh issue view 1 --comments', async () => {
+      const { stdout, stderr, exitCode } = await h.ghProxyWithRepo('issue view 1 --comments');
+      expect(exitCode, `gh stderr: ${stderr}\ngh stdout: ${stdout}`).toBe(0);
+      expect(stdout).toContain('bob');
+    });
+
     it('gh pr list', async () => {
       const { stdout, exitCode } = await h.ghProxyWithRepo('pr list');
       expect(exitCode).toBe(0);
