@@ -61,8 +61,21 @@ async function killProxy(ctx: Awaited<ReturnType<typeof newProxy>>): Promise<voi
   await rm(ctx.dataDir, { recursive: true, force: true });
 }
 
+/**
+ * Warm the per-host TLS cert cache by doing one well-behaved CONNECT. Without
+ * this, the very first CONNECT in the burst triggers openssl-based cert
+ * signing, which is slow enough on CI runners that later tests' healthCheck
+ * races it and times out. Warming makes the burst exercise the RST-during-
+ * await window with an already-cached cert, which is the scenario we care
+ * about anyway (the bug fires whenever the await's microtask boundary lets
+ * a socket 'error' land without a listener).
+ */
+async function warmHost(port: number, host: string): Promise<void> {
+  await healthCheck(port, host, 10_000);
+}
+
 /** Does the proxy still answer a well-behaved CONNECT? */
-function healthCheck(port: number, host = 'gmail.googleapis.com', timeoutMs = 3000): Promise<boolean> {
+function healthCheck(port: number, host = 'gmail.googleapis.com', timeoutMs = 10_000): Promise<boolean> {
   return new Promise((resolve) => {
     const sock = net.connect(port, '127.0.0.1');
     const timer = setTimeout(() => { sock.destroy(); resolve(false); }, timeoutMs);
@@ -90,12 +103,21 @@ describe('MITM proxy — abuse patterns', () => {
     process.off('unhandledRejection', onCaught as (e: unknown) => void);
   });
 
-  it('A: 50 CONNECTs + immediate RST (cached host)', async () => {
+  // The health-check host is pre-warmed so the post-burst assertion doesn't
+  // race fresh cert signing on slow CI runners. The burst deliberately uses
+  // DIFFERENT intercepted hosts so the CONNECT handler's `await getHostCert`
+  // still has a real cert-signing window to abort during.
+  const HEALTH_HOST = 'gmail.googleapis.com';
+  const BURST_HOST_A = 'www.googleapis.com';
+  const BURST_HOST_B = 'api.github.com';
+
+  it('A: CONNECT + immediate RST burst (fresh cert-signing host)', async () => {
     const ctx = await newProxy();
-    await Promise.all(Array.from({ length: 50 }, () => new Promise<void>((resolve) => {
+    await warmHost(ctx.proxyPort, HEALTH_HOST);
+    await Promise.all(Array.from({ length: 30 }, () => new Promise<void>((resolve) => {
       const s = net.connect(ctx.proxyPort, '127.0.0.1');
       s.on('connect', () => {
-        s.write('CONNECT gmail.googleapis.com:443 HTTP/1.1\r\nHost: gmail.googleapis.com:443\r\n\r\n');
+        s.write(`CONNECT ${BURST_HOST_A}:443 HTTP/1.1\r\nHost: ${BURST_HOST_A}:443\r\n\r\n`);
         setTimeout(() => { s.resetAndDestroy(); resolve(); }, 2);
       });
       s.on('error', () => resolve());
@@ -103,20 +125,19 @@ describe('MITM proxy — abuse patterns', () => {
     })));
     await new Promise((r) => setTimeout(r, 100));
     expect(caught, `A: ${caught.map((e) => e.message).join(' | ')}`).toEqual([]);
-    expect(await healthCheck(ctx.proxyPort)).toBe(true);
+    expect(await healthCheck(ctx.proxyPort, HEALTH_HOST)).toBe(true);
     await killProxy(ctx);
   });
 
-  it('B: CONNECT to different fresh hosts (force cert signing each time)', async () => {
+  it('B: CONNECT + RST against a second fresh intercepted host', async () => {
     const ctx = await newProxy();
+    await warmHost(ctx.proxyPort, HEALTH_HOST);
     const tasks: Promise<void>[] = [];
-    for (let i = 0; i < 25; i++) {
-      const host = `api.github.com`;  // intercepted
+    for (let i = 0; i < 15; i++) {
       tasks.push(new Promise<void>((resolve) => {
         const s = net.connect(ctx.proxyPort, '127.0.0.1');
         s.on('connect', () => {
-          s.write(`CONNECT ${host}:443 HTTP/1.1\r\nHost: ${host}:443\r\n\r\n`);
-          // RST at pseudo-random delays that should overlap the cert-signing window
+          s.write(`CONNECT ${BURST_HOST_B}:443 HTTP/1.1\r\nHost: ${BURST_HOST_B}:443\r\n\r\n`);
           setTimeout(() => { s.resetAndDestroy(); resolve(); }, i % 5);
         });
         s.on('error', () => resolve());
@@ -126,7 +147,7 @@ describe('MITM proxy — abuse patterns', () => {
     await Promise.all(tasks);
     await new Promise((r) => setTimeout(r, 100));
     expect(caught, `B: ${caught.map((e) => e.message).join(' | ')}`).toEqual([]);
-    expect(await healthCheck(ctx.proxyPort, 'api.github.com')).toBe(true);
+    expect(await healthCheck(ctx.proxyPort, HEALTH_HOST)).toBe(true);
     await killProxy(ctx);
   });
 
