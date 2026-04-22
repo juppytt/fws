@@ -174,6 +174,13 @@ export function startMitmProxy(mockPort: number, proxyPort: number): http.Server
   });
 
   proxy.on('connect', async (req, clientSocket, head) => {
+    // Attach an error handler on the raw client socket FIRST, before any
+    // await or TLS wrap. If we don't, a client RST that lands between
+    // "200 Connection Established" and the TLS handshake surfaces as an
+    // unhandled 'error' event on the raw socket and crashes the Node
+    // process (observed as `read ECONNRESET` with no listener).
+    clientSocket.on('error', () => clientSocket.destroy());
+
     const [hostname, portStr] = (req.url || '').split(':');
     const port = parseInt(portStr) || 443;
 
@@ -201,6 +208,8 @@ export function startMitmProxy(mockPort: number, proxyPort: number): http.Server
         key: hostCert.key,
         cert: hostCert.cert + caCert!.cert, // chain
       });
+      // Keep our destroy-on-error behavior on the wrapped socket too.
+      tlsSocket.on('error', () => tlsSocket.destroy());
 
       if (head.length > 0) {
         tlsSocket.unshift(head);
