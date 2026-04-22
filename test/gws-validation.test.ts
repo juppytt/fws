@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createTestHarness, type TestHarness } from './helpers/harness.js';
+import { SAMPLE_GMAIL_MESSAGE_IDS, SAMPLE_GMAIL_THREAD_IDS } from '../src/store/seed.js';
 
 /**
  * End-to-end validation: every implemented endpoint tested through the actual gws CLI.
@@ -100,19 +101,19 @@ describe('gws CLI validation', () => {
       });
 
       it('gws gmail users messages get', async () => {
-        const { stdout, exitCode } = await h.gws('gmail users messages get --params {"userId":"me","id":"msg001"}');
+        const { stdout, exitCode } = await h.gws(`gmail users messages get --params {"userId":"me","id":"${SAMPLE_GMAIL_MESSAGE_IDS[0]}"}`);
         expect(exitCode).toBe(0);
         const data = JSON.parse(stdout);
-        expect(data.id).toBe('msg001');
+        expect(data.id).toBe(SAMPLE_GMAIL_MESSAGE_IDS[0]);
         expect(data.payload).toBeDefined();
         expect(data.payload.headers).toBeDefined();
       });
 
       it('gws gmail users messages get with format=minimal', async () => {
-        const { stdout, exitCode } = await h.gws('gmail users messages get --params {"userId":"me","id":"msg001","format":"minimal"}');
+        const { stdout, exitCode } = await h.gws(`gmail users messages get --params {"userId":"me","id":"${SAMPLE_GMAIL_MESSAGE_IDS[0]}","format":"minimal"}`);
         expect(exitCode).toBe(0);
         const data = JSON.parse(stdout);
-        expect(data.id).toBe('msg001');
+        expect(data.id).toBe(SAMPLE_GMAIL_MESSAGE_IDS[0]);
         expect(data.labelIds).toBeDefined();
         expect(data.payload).toBeUndefined();
       });
@@ -129,7 +130,7 @@ describe('gws CLI validation', () => {
       });
 
       it('gws gmail users messages modify', async () => {
-        const { stdout, exitCode } = await h.gws('gmail users messages modify --params {"userId":"me","id":"msg001"} --json {"addLabelIds":["STARRED"],"removeLabelIds":["UNREAD"]}');
+        const { stdout, exitCode } = await h.gws(`gmail users messages modify --params {"userId":"me","id":"${SAMPLE_GMAIL_MESSAGE_IDS[0]}"} --json {"addLabelIds":["STARRED"],"removeLabelIds":["UNREAD"]}`);
         expect(exitCode).toBe(0);
         const data = JSON.parse(stdout);
         expect(data.labelIds).toContain('STARRED');
@@ -258,15 +259,15 @@ describe('gws CLI validation', () => {
       });
 
       it('gws gmail users threads get', async () => {
-        const { stdout, exitCode } = await h.gws('gmail users threads get --params {"userId":"me","id":"thread001"}');
+        const { stdout, exitCode } = await h.gws(`gmail users threads get --params {"userId":"me","id":"${SAMPLE_GMAIL_THREAD_IDS[0]}"}`);
         expect(exitCode).toBe(0);
         const data = JSON.parse(stdout);
-        expect(data.id).toBe('thread001');
+        expect(data.id).toBe(SAMPLE_GMAIL_THREAD_IDS[0]);
         expect(data.messages.length).toBeGreaterThan(0);
       });
 
       it('gws gmail users threads modify', async () => {
-        const { stdout, exitCode } = await h.gws('gmail users threads modify --params {"userId":"me","id":"thread001"} --json {"addLabelIds":["STARRED"]}');
+        const { stdout, exitCode } = await h.gws(`gmail users threads modify --params {"userId":"me","id":"${SAMPLE_GMAIL_THREAD_IDS[0]}"} --json {"addLabelIds":["STARRED"]}`);
         expect(exitCode).toBe(0);
         const data = JSON.parse(stdout);
         expect(data.messages[0].labelIds).toContain('STARRED');
@@ -329,27 +330,27 @@ describe('gws CLI validation', () => {
       });
 
       it('gws gmail +reply', async () => {
-        const { stdout, exitCode } = await h.gwsProxy('gmail +reply --message-id msg001 --body "Got it"');
+        const { stdout, exitCode } = await h.gwsProxy(`gmail +reply --message-id ${SAMPLE_GMAIL_MESSAGE_IDS[0]} --body "Got it"`);
         expect(exitCode).toBe(0);
         const data = JSON.parse(stdout);
         expect(data.id).toBeTruthy();
-        expect(data.threadId).toBe('thread001');
+        expect(data.threadId).toBe(SAMPLE_GMAIL_THREAD_IDS[0]);
       });
 
       it('gws gmail +reply-all', async () => {
-        const { stdout, exitCode } = await h.gwsProxy('gmail +reply-all --message-id msg001 --body "Sounds good"');
+        const { stdout, exitCode } = await h.gwsProxy(`gmail +reply-all --message-id ${SAMPLE_GMAIL_MESSAGE_IDS[0]} --body "Sounds good"`);
         expect(exitCode).toBe(0);
         const data = JSON.parse(stdout);
         expect(data.id).toBeTruthy();
-        expect(data.threadId).toBe('thread001');
+        expect(data.threadId).toBe(SAMPLE_GMAIL_THREAD_IDS[0]);
       });
 
       it('gws gmail +forward', async () => {
-        const { stdout, exitCode } = await h.gwsProxy('gmail +forward --message-id msg001 --to carol@example.com --body "FYI"');
+        const { stdout, exitCode } = await h.gwsProxy(`gmail +forward --message-id ${SAMPLE_GMAIL_MESSAGE_IDS[0]} --to carol@example.com --body "FYI"`);
         expect(exitCode).toBe(0);
         const data = JSON.parse(stdout);
         expect(data.id).toBeTruthy();
-        expect(data.threadId).toBe('thread001');
+        expect(data.threadId).toBe(SAMPLE_GMAIL_THREAD_IDS[0]);
       });
     });
 
