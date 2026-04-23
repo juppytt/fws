@@ -410,16 +410,25 @@ function handleInterceptedRequest(tlsSocket: tls.TLSSocket, hostname: string, mo
           const body = Buffer.concat(chunks);
           let respHeader = `HTTP/1.1 ${mockRes.statusCode ?? 502} ${mockRes.statusMessage ?? ''}\r\n`;
           let upstreamWantsClose = false;
+          // Buffering the mock response means we're writing it as a single
+          // framed block, so we must advertise Content-Length and drop any
+          // upstream Transfer-Encoding — otherwise clients that trust the
+          // chunked header (e.g. git smart HTTP, which streams packfiles)
+          // will try to parse the raw body as chunked and fail with
+          // "Malformed encoding found in chunked-encoding".
           for (const [key, val] of Object.entries(mockRes.headers)) {
             if (val == null) continue;
+            const lower = key.toLowerCase();
+            if (lower === 'transfer-encoding' || lower === 'content-length') continue;
             const vals = Array.isArray(val) ? val : [val];
             for (const v of vals) {
               respHeader += `${key}: ${v}\r\n`;
-              if (key.toLowerCase() === 'connection' && String(v).toLowerCase() === 'close') {
+              if (lower === 'connection' && String(v).toLowerCase() === 'close') {
                 upstreamWantsClose = true;
               }
             }
           }
+          respHeader += `Content-Length: ${body.length}\r\n`;
           respHeader += '\r\n';
 
           try {

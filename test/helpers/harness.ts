@@ -10,6 +10,10 @@ import type { Server } from 'node:http';
 
 export interface TestHarness {
   port: number;
+  /** MITM proxy port (HTTPS_PROXY target). */
+  proxyPort: number;
+  /** Absolute path to the MITM CA bundle for SSL_CERT_FILE / GIT_SSL_CAINFO. */
+  caBundlePath: string;
   /** Direct HTTP fetch against mock server */
   fetch: (urlPath: string, init?: RequestInit) => Promise<Response>;
   /** Run gws command (uses discovery cache rewriting for regular commands) */
@@ -111,6 +115,8 @@ export async function createTestHarness(): Promise<TestHarness> {
 
   return {
     port,
+    proxyPort,
+    caBundlePath: bundlePath,
     fetch: (urlPath: string, init?: RequestInit) =>
       globalThis.fetch(`http://localhost:${port}${urlPath}`, init),
     gws: (args: string) => runCmd(gwsPath, args, baseEnv),
