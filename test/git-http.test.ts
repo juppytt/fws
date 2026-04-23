@@ -96,6 +96,51 @@ describe('git smart HTTP', () => {
     expect(src).toBe('console.log("hi");\n');
   }, 45_000);
 
+  it('clones through the MITM proxy against https://github.com/<owner>/<repo>.git', async () => {
+    // Regression: the MITM proxy buffers the mock response and re-emits it as
+    // a single block. If it passes through the upstream `Transfer-Encoding:
+    // chunked` header while writing the body un-chunked, git aborts with
+    // "Malformed encoding found in chunked-encoding" mid-clone.
+    await h.fetch('/__fws/setup/github/repo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        owner: 'octo',
+        repo: 'via-proxy',
+        files: [{ path: 'README.md', content: 'via proxy\n' }],
+      }),
+    });
+
+    const dest = path.join(await mkWorkdir(), 'via-proxy');
+    const { stdout, stderr, code } = await new Promise<{ stdout: string; stderr: string; code: number }>((resolve) => {
+      execFile(
+        'git',
+        ['clone', '--no-hardlinks', 'https://github.com/octo/via-proxy.git', dest],
+        {
+          env: {
+            ...process.env,
+            HTTPS_PROXY: `http://localhost:${h.proxyPort}`,
+            SSL_CERT_FILE: h.caBundlePath,
+            GIT_SSL_CAINFO: h.caBundlePath,
+            GIT_TERMINAL_PROMPT: '0',
+          },
+          timeout: 30_000,
+        },
+        (err, out, errOut) => {
+          resolve({
+            stdout: out ?? '',
+            stderr: errOut ?? '',
+            code: err ? ((err as { code?: number }).code ?? 1) : 0,
+          });
+        },
+      );
+    });
+
+    expect(code, `stdout=${stdout}\nstderr=${stderr}`).toBe(0);
+    const readme = await readFile(path.join(dest, 'README.md'), 'utf-8');
+    expect(readme).toBe('via proxy\n');
+  }, 45_000);
+
   it('refuses push via git-receive-pack', async () => {
     await h.fetch('/__fws/setup/github/repo', {
       method: 'POST',
