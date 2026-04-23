@@ -14,7 +14,7 @@ Built with [Claude Code](https://claude.ai/code).
 
 ## How it works
 
-fws runs a local HTTP mock server (port 4100) and a MITM CONNECT proxy (port 4101) that intercepts HTTPS traffic to `*.googleapis.com` and `api.github.com`, forwarding it to the mock server.
+fws runs a local HTTP mock server (port 4100) and a MITM CONNECT proxy (port 4101) that intercepts HTTPS traffic to `*.googleapis.com`, `api.github.com`, and `github.com`, forwarding it to the mock server. The github.com handler speaks the git smart HTTP protocol so `git clone` / `gh repo clone` against fws-seeded repos works end-to-end.
 
 For `gws`: discovery cache URLs are rewritten to localhost, and `GOOGLE_WORKSPACE_CLI_TOKEN=fake` bypasses auth.
 For `gh`: `HTTPS_PROXY` routes traffic through the MITM proxy, and `GH_TOKEN=fake` bypasses auth.

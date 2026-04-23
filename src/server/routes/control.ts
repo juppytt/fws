@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { getStore, resetStore, loadStore, serializeStore } from '../../store/index.js';
 import { generateId, generateEtag } from '../../util/id.js';
 import { encodeGmailBase64 } from '../../util/base64.js';
+import { setupGitRepo } from './git-http.js';
 
 export function controlRoutes(): Router {
   const r = Router();
@@ -139,6 +140,31 @@ export function controlRoutes(): Router {
     const store = getStore();
     store.webFetch.fixtures = [];
     res.json({ status: 'reset', scope: 'webFetch' });
+  });
+
+  // Create (or overwrite) a mock GitHub repo that clients can `git clone`.
+  //   POST /__fws/setup/github/repo  { owner, repo, files?, defaultBranch?, ... }
+  // Bare repo is materialized on disk so fws can delegate the clone protocol
+  // to `git upload-pack`; see routes/git-http.ts.
+  r.post('/__fws/setup/github/repo', async (req, res, next) => {
+    try {
+      const body = req.body ?? {};
+      if (typeof body.owner !== 'string' || typeof body.repo !== 'string') {
+        return res.status(400).json({ error: 'owner and repo are required strings' });
+      }
+      const out = await setupGitRepo({
+        owner: body.owner,
+        repo: body.repo,
+        files: Array.isArray(body.files) ? body.files : undefined,
+        defaultBranch: typeof body.defaultBranch === 'string' ? body.defaultBranch : undefined,
+        commitMessage: typeof body.commitMessage === 'string' ? body.commitMessage : undefined,
+        authorName: typeof body.authorName === 'string' ? body.authorName : undefined,
+        authorEmail: typeof body.authorEmail === 'string' ? body.authorEmail : undefined,
+      });
+      res.json({ status: 'ok', ...out });
+    } catch (err) {
+      next(err);
+    }
   });
 
   return r;
