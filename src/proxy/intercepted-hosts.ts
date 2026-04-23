@@ -27,6 +27,9 @@ export const INTERCEPTED_HOSTS: readonly string[] = [
   'admin.googleapis.com',
   // GitHub
   'api.github.com',
+  // github.com is intercepted for git smart HTTP (clone/fetch against
+  // fws-seeded repos); REST/GraphQL continues to land on api.github.com.
+  'github.com',
 ];
 
 /** True when `hostname` is one of the built-in service hosts (or a subdomain of one). */

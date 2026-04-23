@@ -6,6 +6,7 @@ import { tasksRoutes } from './routes/tasks.js';
 import { sheetsRoutes } from './routes/sheets.js';
 import { peopleRoutes } from './routes/people.js';
 import { githubRoutes } from './routes/github.js';
+import { gitHttpRoutes } from './routes/git-http.js';
 import { searchRoutes } from './routes/search.js';
 import { webFetchRoutes, webFetchHostDispatcher } from './routes/fetch.js';
 import { controlRoutes } from './routes/control.js';
@@ -33,6 +34,12 @@ export function createApp(): express.Express {
   app.use(tasksRoutes());
   app.use(sheetsRoutes());
   app.use(peopleRoutes());
+  // git smart HTTP mock lives on github.com path shape (/<owner>/<repo>.git/…)
+  // while githubRoutes() handles api.github.com's REST/GraphQL. Mount the git
+  // routes first — their paths end in .git which doesn't collide with the REST
+  // API prefixes (`/repos`, `/user`, `/graphql`, …), but it still keeps the
+  // git-clone path resolution close to where other github plumbing lives.
+  app.use(gitHttpRoutes());
   app.use(githubRoutes());
   app.use(searchRoutes());
   app.use(webFetchRoutes());
