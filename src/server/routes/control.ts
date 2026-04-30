@@ -142,6 +142,44 @@ export function controlRoutes(): Router {
     res.json({ status: 'reset', scope: 'webFetch' });
   });
 
+  // Mutate the seeded "self" user. Lets an operator alternate authors at
+  // runtime — `fws github user set --login alex.park`, then a `gh issue
+  // create` is stamped with alex.park as user.login; switch again to
+  // david.kim before the next create. Only fields included in the body
+  // are touched, so partial updates work.
+  r.post('/__fws/setup/github/user', (req, res) => {
+    const body = req.body ?? {};
+    if (body.login !== undefined && typeof body.login !== 'string') {
+      return res.status(400).json({ error: 'login must be a string' });
+    }
+    if (body.name !== undefined && typeof body.name !== 'string') {
+      return res.status(400).json({ error: 'name must be a string' });
+    }
+    if (body.email !== undefined && typeof body.email !== 'string') {
+      return res.status(400).json({ error: 'email must be a string' });
+    }
+    const store = getStore();
+    if (typeof body.login === 'string') {
+      store.github.user.login = body.login;
+      store.github.user.avatar_url = `https://github.com/${body.login}.png`;
+      store.github.user.html_url = `https://github.com/${body.login}`;
+    }
+    if (typeof body.name === 'string') {
+      store.github.user.name = body.name;
+      // Display name is shared with Drive owners / Gmail sendAs, which
+      // read store.gmail.profile.displayName at request time.
+      store.gmail.profile.displayName = body.name;
+    }
+    if (typeof body.email === 'string') {
+      store.github.user.email = body.email;
+    }
+    res.json({
+      login: store.github.user.login,
+      name: store.github.user.name,
+      email: store.github.user.email,
+    });
+  });
+
   // Create (or overwrite) a mock GitHub repo that clients can `git clone`.
   //   POST /__fws/setup/github/repo  { owner, repo, files?, defaultBranch?, ... }
   // Bare repo is materialized on disk so fws can delegate the clone protocol

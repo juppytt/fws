@@ -26,36 +26,34 @@ const SYSTEM_LABELS: GmailLabel[] = [
   { id: 'CATEGORY_FORUMS', name: 'CATEGORY_FORUMS', type: 'system' },
 ];
 
-// Default identity for the seeded mock user. Each can be overridden via
-// environment variables at server start so the agent under test sees a
-// plausible owner / author / email instead of `testuser` placeholders.
+// Initial identity for the seeded mock user. Each can be set via env vars
+// at server start so the agent under test sees a plausible author / email
+// instead of `testuser` placeholders:
 //   FWS_USER_LOGIN     GitHub login (default: testuser)
 //   FWS_USER_NAME      Display name used everywhere a "Test User" label was
 //                      previously hardcoded (default: Test User)
 //   FWS_USER_EMAIL     Gmail / Calendar / Drive owner email + GitHub email
 //                      (default: testuser@example.com)
-//   FWS_GITHUB_REPO    Default seeded repo. Either a bare name (owner falls
-//                      back to FWS_USER_LOGIN) or owner/repo (default:
-//                      my-project)
-// Snapshots already capture the resolved values via the regular store
-// serialization, so a custom identity persists through fws snapshot save/load.
+// These are *initial* values only — the running server's user identity can
+// be changed at any time via `fws github user set` (or its underlying
+// /__fws/setup/github/user endpoint). Snapshots capture the live identity.
+//
+// The seeded repo is always `${login}/my-project`. To work against a
+// differently-named repo, create one at runtime (`gh repo create
+// owner/repo`, `git clone http://localhost/git/owner/repo.git`, etc.) — the
+// store is keyed by repo full_name, so multi-repo just works.
 export interface SeedIdentity {
   login: string;
   name: string;
   email: string;
-  repoOwner: string;
-  repoName: string;
 }
 
 export function resolveSeedIdentity(env: NodeJS.ProcessEnv = process.env): SeedIdentity {
-  const login = env.FWS_USER_LOGIN || 'testuser';
-  const name = env.FWS_USER_NAME || 'Test User';
-  const email = env.FWS_USER_EMAIL || 'testuser@example.com';
-  const repoSpec = env.FWS_GITHUB_REPO || 'my-project';
-  const slash = repoSpec.indexOf('/');
-  const repoOwner = slash >= 0 ? repoSpec.slice(0, slash) : login;
-  const repoName = slash >= 0 ? repoSpec.slice(slash + 1) : repoSpec;
-  return { login, name, email, repoOwner, repoName };
+  return {
+    login: env.FWS_USER_LOGIN || 'testuser',
+    name: env.FWS_USER_NAME || 'Test User',
+    email: env.FWS_USER_EMAIL || 'testuser@example.com',
+  };
 }
 
 function makeMessage(id: string, threadId: string, historyId: number, opts: {
@@ -440,8 +438,11 @@ function createSearchSeed(): SearchStore {
 }
 
 function createGitHubSeed(identity: SeedIdentity): GitHubStore {
-  const { login, name, email, repoOwner, repoName } = identity;
-  const repoFullName = `${repoOwner}/${repoName}`;
+  const { login, name, email } = identity;
+  // Seeded repo always lives under the seeded user. To use a different
+  // repo, create one at runtime (gh repo create / git clone / fws CLI) —
+  // the store is keyed by full_name so multi-repo is automatic.
+  const repoFullName = `${login}/my-project`;
   return {
     user: {
       login,
@@ -455,9 +456,9 @@ function createGitHubSeed(identity: SeedIdentity): GitHubStore {
     repos: {
       [repoFullName]: {
         id: 101,
-        name: repoName,
+        name: 'my-project',
         full_name: repoFullName,
-        owner: { login: repoOwner, id: 1, type: 'User' },
+        owner: { login, id: 1, type: 'User' },
         private: false,
         html_url: `https://github.com/${repoFullName}`,
         description: 'A sample project for testing',

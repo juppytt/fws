@@ -1,7 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createSeedStore, resolveSeedIdentity } from '../src/store/seed.js';
+import { createTestHarness, type TestHarness } from './helpers/harness.js';
 
-describe('seed identity overrides', () => {
+describe('seed identity (initial values from env)', () => {
   it('uses the testuser defaults when no env vars are set', () => {
     const store = createSeedStore(resolveSeedIdentity({}));
     expect(store.github.user.login).toBe('testuser');
@@ -12,7 +13,7 @@ describe('seed identity overrides', () => {
     expect(store.gmail.profile.displayName).toBe('Test User');
   });
 
-  it('lets FWS_USER_LOGIN / NAME / EMAIL override the seeded user', () => {
+  it('lets FWS_USER_LOGIN / NAME / EMAIL set the initial seeded user', () => {
     const store = createSeedStore(resolveSeedIdentity({
       FWS_USER_LOGIN: 'alex.park',
       FWS_USER_NAME: 'Alex Park',
@@ -23,14 +24,12 @@ describe('seed identity overrides', () => {
     expect(store.github.user.email).toBe('alex.park@platform.internal');
     expect(store.github.user.html_url).toBe('https://github.com/alex.park');
 
-    // The seeded repo follows the login by default, and so do the issue /
-    // PR / comment references — that's the bit the agent reads.
+    // Repo full_name follows the configured login. We don't take a separate
+    // repo override — to use a different repo, create one at runtime.
     expect(store.github.repos['alex.park/my-project']).toBeDefined();
     expect(store.github.repos['testuser/my-project']).toBeUndefined();
     expect(store.github.pulls['alex.park/my-project'][3].head.label)
       .toBe('alex.park:fix/sso-login');
-    expect(store.github.issues['alex.park/my-project'][1].assignees[0].login)
-      .toBe('alex.park');
 
     // Other services share the identity.
     expect(store.gmail.profile.emailAddress).toBe('alex.park@platform.internal');
@@ -39,26 +38,65 @@ describe('seed identity overrides', () => {
     expect(driveOwner?.emailAddress).toBe('alex.park@platform.internal');
     expect(driveOwner?.displayName).toBe('Alex Park');
   });
+});
 
-  it('FWS_GITHUB_REPO accepts owner/repo for non-personal owners', () => {
-    const store = createSeedStore(resolveSeedIdentity({
-      FWS_USER_LOGIN: 'alex.park',
-      FWS_GITHUB_REPO: 'platform/weather-outfit-recommender',
-    }));
-    expect(store.github.user.login).toBe('alex.park');
-    const repo = store.github.repos['platform/weather-outfit-recommender'];
-    expect(repo).toBeDefined();
-    expect(repo.owner.login).toBe('platform');
-    expect(repo.html_url).toBe('https://github.com/platform/weather-outfit-recommender');
-    expect(store.github.issues['platform/weather-outfit-recommender'][1].html_url)
-      .toBe('https://github.com/platform/weather-outfit-recommender/issues/1');
+describe('runtime user-set endpoint', () => {
+  let h: TestHarness;
+  beforeAll(async () => { h = await createTestHarness(); });
+  afterAll(async () => { await h.cleanup(); });
+
+  it('alternating user.login between create calls stamps each issue with the right author', async () => {
+    // Switch to alex.park and create issue A.
+    await h.fetch('/__fws/setup/github/user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ login: 'alex.park', name: 'Alex Park' }),
+    });
+    const a = await (await h.fetch('/repos/testuser/my-project/issues', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Issue A', body: 'from alex' }),
+    })).json();
+    expect(a.user.login).toBe('alex.park');
+
+    // Switch to david.kim and create issue B.
+    await h.fetch('/__fws/setup/github/user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ login: 'david.kim', name: 'David Kim' }),
+    });
+    const b = await (await h.fetch('/repos/testuser/my-project/issues', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Issue B', body: 'from david' }),
+    })).json();
+    expect(b.user.login).toBe('david.kim');
+
+    // GET /user reflects the latest set.
+    const me = await (await h.fetch('/user')).json();
+    expect(me.login).toBe('david.kim');
+    expect(me.name).toBe('David Kim');
+
+    // Display name flows to Gmail sendAs / Drive owner without restart.
+    const sendAs = await (await h.fetch('/gmail/v1/users/me/settings/sendAs')).json();
+    expect(sendAs.sendAs[0].displayName).toBe('David Kim');
   });
 
-  it('FWS_GITHUB_REPO without a slash keeps the owner = login', () => {
-    const store = createSeedStore(resolveSeedIdentity({
-      FWS_USER_LOGIN: 'alex.park',
-      FWS_GITHUB_REPO: 'weather-outfit-recommender',
-    }));
-    expect(store.github.repos['alex.park/weather-outfit-recommender']).toBeDefined();
+  it('partial updates only touch the fields provided', async () => {
+    await h.fetch('/__fws/setup/github/user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ login: 'alex.park', name: 'Alex Park', email: 'alex@x.io' }),
+    });
+    // Only update email.
+    await h.fetch('/__fws/setup/github/user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'alex.park@platform.internal' }),
+    });
+    const me = await (await h.fetch('/user')).json();
+    expect(me.login).toBe('alex.park');
+    expect(me.name).toBe('Alex Park');
+    expect(me.email).toBe('alex.park@platform.internal');
   });
 });
