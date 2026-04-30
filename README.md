@@ -48,10 +48,11 @@ gws gmail +triage
 gws calendar events list --params '{"calendarId":"primary"}'
 gws drive files list
 
-# Try gh commands
-gh issue list                                      # requires GH_REPO=testuser/my-project
-gh api /repos/testuser/my-project/issues
+# Try gh commands (gh reads owner/repo from the current checkout's
+# .git/config — run inside a checkout, or prefix with GH_REPO=owner/repo)
 gh api /user
+GH_REPO=testuser/my-project gh issue list
+gh api /repos/testuser/my-project/issues
 
 # When done
 fws server stop
@@ -120,6 +121,59 @@ fws reset --snapshot my-scenario  # Reset to a specific snapshot
 
 Snapshots are stored in `~/.local/share/fws/snapshots/` (override with `FWS_DATA_DIR`).
 
+### Posting issues / PRs as different users
+
+The default seeded "self" user is `testuser` / "Test User" /
+`testuser@example.com`. When fws creates a new issue, PR, or comment via
+the gh API it stamps `user.login` with whoever the seeded self user is at
+that moment — agents read this back from the API and weight a request
+from `testuser` differently from one from `alex.park`, so for agent-eval
+runs you'll typically want a plausible login.
+
+Set the **initial** identity at server start (optional):
+
+```bash
+FWS_USER_LOGIN=alex.park \
+FWS_USER_NAME="Alex Park" \
+FWS_USER_EMAIL=alex.park@platform.internal \
+fws server start
+```
+
+…and switch it **at runtime** to alternate authors in one session:
+
+```bash
+fws github user set --login alex.park --name "Alex Park"
+gh issue create -t "..." -b "..."   # → user.login = alex.park
+
+fws github user set --login david.kim --name "David Kim"
+gh issue create -t "..." -b "..."   # → user.login = david.kim
+```
+
+The display name also flows to Drive owner / Gmail sendAs without a
+restart. Snapshots capture the live identity, so it persists across
+`fws snapshot save` / `fws snapshot load`.
+
+### Working against a different repo
+
+The seeded repo is always `${login}/my-project`. The store is keyed by
+repo full_name, so additional repos are first-class — create one and
+work in it:
+
+```bash
+gh repo create platform/weather-outfit-recommender   # API-only repo entry
+# …or, to also materialize a clonable bare repo on disk so `git clone` works:
+curl -sX POST http://localhost:4100/__fws/setup/github/repo \
+  -H 'content-type: application/json' \
+  -d '{"owner":"platform","repo":"weather-outfit-recommender","files":[{"path":"README.md","content":"# weather-outfit-recommender\n"}]}'
+git clone http://localhost:4100/git/platform/weather-outfit-recommender.git
+cd weather-outfit-recommender
+gh issue create -t "Fix login bug" -b "..."   # gh reads owner/repo from .git/config
+```
+
+`fws server env` does not export `GH_REPO` — gh reads owner/repo from
+the current checkout's `.git/config`. If you run gh outside a checkout,
+prefix the call with `GH_REPO=owner/repo`.
+
 ## Default seed data
 
 | Service  | Data |
@@ -130,7 +184,7 @@ Snapshots are stored in `~/.local/share/fws/snapshots/` (override with `FWS_DATA
 | Tasks    | 1 task list with 2 tasks (1 pending, 1 completed) |
 | Sheets   | 1 spreadsheet ("Budget 2026") |
 | People   | 2 contacts (Alice, Bob), 1 contact group |
-| GitHub   | 1 repo (testuser/my-project), 2 issues, 1 PR, 1 comment |
+| GitHub   | 1 repo (`${login}/my-project`, default `testuser/my-project`), 2 issues, 1 PR, 1 comment — see "Posting issues / PRs as different users" and "Working against a different repo" |
 
 ## Documentation
 

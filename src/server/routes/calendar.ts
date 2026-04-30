@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { getStore } from '../../store/index.js';
 import { generateId, generateEtag } from '../../util/id.js';
-import { DEFAULT_USER_EMAIL } from '../../store/seed.js';
 
 export function calendarRoutes(): Router {
   const r = Router();
