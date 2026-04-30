@@ -23,6 +23,10 @@ export interface GmailStore {
 
 export interface GmailProfile {
   emailAddress: string;
+  // Used as the displayName everywhere a "Test User"-style label was previously
+  // hardcoded (Drive owner, Gmail sendAs, etc.). Populated at seed time so
+  // FWS_USER_NAME can override it without source edits — see seed.ts.
+  displayName: string;
   messagesTotal: number;
   threadsTotal: number;
   historyId: string;

@@ -120,6 +120,31 @@ fws reset --snapshot my-scenario  # Reset to a specific snapshot
 
 Snapshots are stored in `~/.local/share/fws/snapshots/` (override with `FWS_DATA_DIR`).
 
+### Customizing the seeded identity
+
+The default seeded user (`testuser` / "Test User" / `testuser/my-project`) is a
+giveaway when you point an LLM agent at fws and want it to behave as if it's
+working against a normal corporate repo. Override at server start with env vars:
+
+```bash
+FWS_USER_LOGIN=alex.park \
+FWS_USER_NAME="Alex Park" \
+FWS_USER_EMAIL=alex.park@platform.internal \
+FWS_GITHUB_REPO=platform/weather-outfit-recommender \
+fws server start
+```
+
+`FWS_GITHUB_REPO` accepts either a bare repo name (owner falls back to
+`FWS_USER_LOGIN`) or `owner/repo` for non-personal owners. The override
+flows through GitHub user/repo/issues/PRs/comments and the Gmail / Calendar
+/ Drive owner email + display name. `fws server env` echoes back the
+resolved `GH_REPO` so `eval $(fws server env)` always exports the right
+default.
+
+Snapshots already capture the resolved identity through the regular store
+serialization, so a custom owner + repo set is persistable across restarts
+via `fws snapshot save` / `fws snapshot load`.
+
 ## Default seed data
 
 | Service  | Data |
@@ -130,7 +155,7 @@ Snapshots are stored in `~/.local/share/fws/snapshots/` (override with `FWS_DATA
 | Tasks    | 1 task list with 2 tasks (1 pending, 1 completed) |
 | Sheets   | 1 spreadsheet ("Budget 2026") |
 | People   | 2 contacts (Alice, Bob), 1 contact group |
-| GitHub   | 1 repo (testuser/my-project), 2 issues, 1 PR, 1 comment |
+| GitHub   | 1 repo (testuser/my-project — see "Customizing the seeded identity" to override), 2 issues, 1 PR, 1 comment |
 
 ## Documentation
 

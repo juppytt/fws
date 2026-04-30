@@ -13,7 +13,7 @@ export function driveRoutes(): Router {
     res.json({
       kind: 'drive#about',
       user: {
-        displayName: 'Test User',
+        displayName: store.gmail.profile.displayName,
         emailAddress: userEmail,
         kind: 'drive#user',
         me: true,
@@ -89,7 +89,7 @@ export function driveRoutes(): Router {
       size: req.body.size,
       trashed: false,
       starred: req.body.starred || false,
-      owners: [{ emailAddress: userEmail, displayName: 'Test User' }],
+      owners: [{ emailAddress: userEmail, displayName: store.gmail.profile.displayName }],
       description: req.body.description,
     };
 
@@ -180,7 +180,7 @@ export function driveRoutes(): Router {
       });
     }
     // Return owner as default permission
-    const userEmail = getStore().gmail.profile.emailAddress;
+    const profile = getStore().gmail.profile;
     res.json({
       kind: 'drive#permissionList',
       permissions: [
@@ -188,9 +188,9 @@ export function driveRoutes(): Router {
           kind: 'drive#permission',
           id: 'owner',
           type: 'user',
-          emailAddress: userEmail,
+          emailAddress: profile.emailAddress,
           role: 'owner',
-          displayName: 'Test User',
+          displayName: profile.displayName,
         },
       ],
     });
@@ -204,15 +204,15 @@ export function driveRoutes(): Router {
         error: { code: 404, message: 'File not found.', status: 'NOT_FOUND' },
       });
     }
-    const userEmail = getStore().gmail.profile.emailAddress;
+    const profile = getStore().gmail.profile;
     if (req.params.permissionId === 'owner') {
       return res.json({
         kind: 'drive#permission',
         id: 'owner',
         type: 'user',
-        emailAddress: userEmail,
+        emailAddress: profile.emailAddress,
         role: 'owner',
-        displayName: 'Test User',
+        displayName: profile.displayName,
       });
     }
     res.status(404).json({

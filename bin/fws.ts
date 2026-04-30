@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 import { Command } from 'commander';
 import { createApp } from '../src/server/app.js';
-import { loadStore, deserializeStore } from '../src/store/index.js';
+import { loadStore, deserializeStore, getStore } from '../src/store/index.js';
 import { generateConfigDir } from '../src/config/rewrite-cache.js';
 import { generateCACert, startMitmProxy } from '../src/proxy/mitm.js';
 import { spawn } from 'node:child_process';
@@ -78,9 +78,19 @@ serverCmd
       const proxyPort = port + 1;
       const proxyServer = startMitmProxy(port, proxyPort);
 
+      // Capture the resolved seed identity (after any snapshot load) so
+      // `fws server env` and the start banner can echo back the right
+      // GH_REPO without the parent shell needing to set FWS_USER_LOGIN
+      // again. Snapshots may carry a different identity than the env vars.
+      const liveStore = getStore();
+      const ghLogin = liveStore.github.user.login;
+      const firstRepo = Object.values(liveStore.github.repos)[0];
+      const ghRepo = firstRepo?.full_name || `${ghLogin}/my-project`;
+
       await ensureDir(getDataDir());
       await fs.writeFile(getServerInfoPath(), JSON.stringify({
         port, proxyPort, pid: process.pid, caPath, bundlePath,
+        ghLogin, ghRepo,
       }));
 
       const shutdown = () => {
@@ -145,6 +155,7 @@ serverCmd
       const serverInfo = JSON.parse(await fs.readFile(getServerInfoPath(), 'utf-8').catch(() => '{}'));
       const proxyPort = serverInfo.proxyPort || port + 1;
       const bundlePath = serverInfo.bundlePath || path.join(getDataDir(), 'certs', 'ca-bundle.crt');
+      const ghRepo = serverInfo.ghRepo || 'testuser/my-project';
 
       console.log(`fws server started on port ${port} (pid ${child.pid})\n`);
       console.log(`Run this to configure your shell:\n`);
@@ -155,7 +166,7 @@ serverCmd
       console.log(`  export HTTPS_PROXY=http://localhost:${proxyPort}`);
       console.log(`  export SSL_CERT_FILE=${bundlePath}`);
       console.log(`  export GH_TOKEN=fake`);
-      console.log(`  export GH_REPO=testuser/my-project\n`);
+      console.log(`  export GH_REPO=${ghRepo}\n`);
       console.log(`Then try:\n`);
       console.log(`  gws gmail +triage`);
       console.log(`  gws drive files list`);
@@ -195,12 +206,13 @@ serverCmd
       const bundlePath = info.bundlePath || path.join(getDataDir(), 'certs', 'ca-bundle.crt');
       const proxyPort = info.proxyPort || info.port + 1;
 
+      const ghRepo = info.ghRepo || 'testuser/my-project';
       console.log(`export GOOGLE_WORKSPACE_CLI_CONFIG_DIR=${configDir}`);
       console.log(`export GOOGLE_WORKSPACE_CLI_TOKEN=fake`);
       console.log(`export HTTPS_PROXY=http://localhost:${proxyPort}`);
       console.log(`export SSL_CERT_FILE=${bundlePath}`);
       console.log(`export GH_TOKEN=fake`);
-      console.log(`export GH_REPO=testuser/my-project`);
+      console.log(`export GH_REPO=${ghRepo}`);
     } catch {
       console.error('No running server found. Start with: fws server start');
       process.exit(1);

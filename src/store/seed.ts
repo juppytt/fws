@@ -26,7 +26,37 @@ const SYSTEM_LABELS: GmailLabel[] = [
   { id: 'CATEGORY_FORUMS', name: 'CATEGORY_FORUMS', type: 'system' },
 ];
 
-const DEFAULT_EMAIL = 'testuser@example.com';
+// Default identity for the seeded mock user. Each can be overridden via
+// environment variables at server start so the agent under test sees a
+// plausible owner / author / email instead of `testuser` placeholders.
+//   FWS_USER_LOGIN     GitHub login (default: testuser)
+//   FWS_USER_NAME      Display name used everywhere a "Test User" label was
+//                      previously hardcoded (default: Test User)
+//   FWS_USER_EMAIL     Gmail / Calendar / Drive owner email + GitHub email
+//                      (default: testuser@example.com)
+//   FWS_GITHUB_REPO    Default seeded repo. Either a bare name (owner falls
+//                      back to FWS_USER_LOGIN) or owner/repo (default:
+//                      my-project)
+// Snapshots already capture the resolved values via the regular store
+// serialization, so a custom identity persists through fws snapshot save/load.
+export interface SeedIdentity {
+  login: string;
+  name: string;
+  email: string;
+  repoOwner: string;
+  repoName: string;
+}
+
+export function resolveSeedIdentity(env: NodeJS.ProcessEnv = process.env): SeedIdentity {
+  const login = env.FWS_USER_LOGIN || 'testuser';
+  const name = env.FWS_USER_NAME || 'Test User';
+  const email = env.FWS_USER_EMAIL || 'testuser@example.com';
+  const repoSpec = env.FWS_GITHUB_REPO || 'my-project';
+  const slash = repoSpec.indexOf('/');
+  const repoOwner = slash >= 0 ? repoSpec.slice(0, slash) : login;
+  const repoName = slash >= 0 ? repoSpec.slice(slash + 1) : repoSpec;
+  return { login, name, email, repoOwner, repoName };
+}
 
 function makeMessage(id: string, threadId: string, historyId: number, opts: {
   from: string; to: string; subject: string; body: string;
@@ -63,7 +93,7 @@ function makeMessage(id: string, threadId: string, historyId: number, opts: {
   };
 }
 
-function makeEvent(id: string, opts: {
+function makeEvent(id: string, email: string, opts: {
   summary: string; start: string; end: string;
   description?: string; location?: string;
 }): CalendarEvent {
@@ -78,15 +108,15 @@ function makeEvent(id: string, opts: {
     end: { dateTime: opts.end },
     created: '2026-04-01T00:00:00Z',
     updated: '2026-04-01T00:00:00Z',
-    creator: { email: DEFAULT_EMAIL },
-    organizer: { email: DEFAULT_EMAIL, self: true },
+    creator: { email },
+    organizer: { email, self: true },
     etag: generateEtag(),
     htmlLink: `https://calendar.google.com/event?eid=${id}`,
     iCalUID: `${id}@example.com`,
   };
 }
 
-function makeFile(id: string, opts: {
+function makeFile(id: string, email: string, displayName: string, opts: {
   name: string; mimeType: string; parents?: string[];
 }): DriveFile {
   return {
@@ -99,49 +129,51 @@ function makeFile(id: string, opts: {
     modifiedTime: '2026-04-01T00:00:00Z',
     trashed: false,
     starred: false,
-    owners: [{ emailAddress: DEFAULT_EMAIL, displayName: 'Test User' }],
+    owners: [{ emailAddress: email, displayName }],
   };
 }
 
-export function createSeedStore(): FwsStore {
+export function createSeedStore(identity: SeedIdentity = resolveSeedIdentity()): FwsStore {
+  const userEmail = identity.email;
+  const userDisplayName = identity.name;
   const labels: Record<string, GmailLabel> = {};
   for (const label of SYSTEM_LABELS) {
     labels[label.id] = { ...label };
   }
   labels['Label_projects'] = { id: 'Label_projects', name: 'Projects', type: 'user' };
 
-  const calendarId = DEFAULT_EMAIL;
+  const calendarId = userEmail;
   const etag = generateEtag();
 
   // --- Sample emails ---
   const messages: Record<string, GmailMessage> = {};
   const sampleMessages = [
     makeMessage(SAMPLE_GMAIL_MESSAGE_IDS[0], SAMPLE_GMAIL_THREAD_IDS[0], 1001, {
-      from: 'alice@company.com', to: DEFAULT_EMAIL,
+      from: 'alice@company.com', to: userEmail,
       subject: 'Q3 Planning Meeting',
       body: 'Hi, let\'s meet tomorrow at 2pm to discuss Q3 planning. I\'ve shared the agenda doc in Drive.',
       labels: ['INBOX', 'UNREAD', 'IMPORTANT'], date: '2026-04-07T09:00:00Z',
     }),
     makeMessage(SAMPLE_GMAIL_MESSAGE_IDS[1], SAMPLE_GMAIL_THREAD_IDS[1], 1002, {
-      from: 'bob@company.com', to: DEFAULT_EMAIL,
+      from: 'bob@company.com', to: userEmail,
       subject: 'Code Review: auth refactor PR #42',
       body: 'Please review the auth middleware refactor when you get a chance. The PR is ready.',
       labels: ['INBOX', 'UNREAD'], date: '2026-04-07T10:30:00Z',
     }),
     makeMessage(SAMPLE_GMAIL_MESSAGE_IDS[2], SAMPLE_GMAIL_THREAD_IDS[2], 1003, {
-      from: 'notifications@github.com', to: DEFAULT_EMAIL,
+      from: 'notifications@github.com', to: userEmail,
       subject: '[project/repo] CI pipeline failed on main',
       body: 'Build #1234 failed. See details: https://github.com/project/repo/actions/runs/1234',
       labels: ['INBOX', 'UNREAD', 'CATEGORY_UPDATES'], date: '2026-04-07T11:00:00Z',
     }),
     makeMessage(SAMPLE_GMAIL_MESSAGE_IDS[3], SAMPLE_GMAIL_THREAD_IDS[3], 1004, {
-      from: DEFAULT_EMAIL, to: 'alice@company.com',
+      from: userEmail, to: 'alice@company.com',
       subject: 'Re: Project proposal',
       body: 'Looks good to me. Let\'s proceed with option B as discussed.',
       labels: ['SENT'], date: '2026-04-06T16:00:00Z',
     }),
     makeMessage(SAMPLE_GMAIL_MESSAGE_IDS[4], SAMPLE_GMAIL_THREAD_IDS[4], 1005, {
-      from: 'hr@company.com', to: DEFAULT_EMAIL,
+      from: 'hr@company.com', to: userEmail,
       subject: 'Reminder: Submit timesheet by Friday',
       body: 'Please submit your timesheet for this week by end of day Friday.',
       labels: ['INBOX'], date: '2026-04-05T08:00:00Z',
@@ -154,21 +186,21 @@ export function createSeedStore(): FwsStore {
   // --- Sample events ---
   const events: Record<string, CalendarEvent> = {};
   const sampleEvents = [
-    makeEvent('evt001', {
+    makeEvent('evt001', userEmail, {
       summary: 'Daily Standup',
       start: '2026-04-08T09:00:00Z', end: '2026-04-08T09:15:00Z',
     }),
-    makeEvent('evt002', {
+    makeEvent('evt002', userEmail, {
       summary: 'Q3 Planning Meeting',
       start: '2026-04-08T14:00:00Z', end: '2026-04-08T15:00:00Z',
       location: 'Conference Room A',
       description: 'Discuss Q3 roadmap and resource allocation',
     }),
-    makeEvent('evt003', {
+    makeEvent('evt003', userEmail, {
       summary: '1:1 with Manager',
       start: '2026-04-09T10:00:00Z', end: '2026-04-09T10:30:00Z',
     }),
-    makeEvent('evt004', {
+    makeEvent('evt004', userEmail, {
       summary: 'Team Lunch',
       start: '2026-04-10T12:00:00Z', end: '2026-04-10T13:00:00Z',
       location: 'Cafeteria',
@@ -181,11 +213,11 @@ export function createSeedStore(): FwsStore {
   // --- Sample drive files ---
   const files: Record<string, DriveFile> = {};
   const sampleFiles = [
-    makeFile('file001', { name: 'Q3 Planning Agenda', mimeType: 'application/vnd.google-apps.document' }),
-    makeFile('file002', { name: 'Budget 2026.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
-    makeFile('file003', { name: 'Architecture Diagram.png', mimeType: 'image/png' }),
-    makeFile('file004', { name: 'Meeting Notes', mimeType: 'application/vnd.google-apps.document', parents: ['folder001'] }),
-    makeFile('folder001', { name: 'Project Docs', mimeType: 'application/vnd.google-apps.folder' }),
+    makeFile('file001', userEmail, userDisplayName, { name: 'Q3 Planning Agenda', mimeType: 'application/vnd.google-apps.document' }),
+    makeFile('file002', userEmail, userDisplayName, { name: 'Budget 2026.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+    makeFile('file003', userEmail, userDisplayName, { name: 'Architecture Diagram.png', mimeType: 'image/png' }),
+    makeFile('file004', userEmail, userDisplayName, { name: 'Meeting Notes', mimeType: 'application/vnd.google-apps.document', parents: ['folder001'] }),
+    makeFile('folder001', userEmail, userDisplayName, { name: 'Project Docs', mimeType: 'application/vnd.google-apps.folder' }),
   ];
   for (const file of sampleFiles) {
     files[file.id] = file;
@@ -194,7 +226,8 @@ export function createSeedStore(): FwsStore {
   return {
     gmail: {
       profile: {
-        emailAddress: DEFAULT_EMAIL,
+        emailAddress: userEmail,
+        displayName: userDisplayName,
         messagesTotal: sampleMessages.length,
         threadsTotal: sampleMessages.length,
         historyId: '1005',
@@ -208,7 +241,7 @@ export function createSeedStore(): FwsStore {
         [calendarId]: {
           kind: 'calendar#calendar',
           id: calendarId,
-          summary: DEFAULT_EMAIL,
+          summary: userEmail,
           timeZone: 'UTC',
           etag,
         },
@@ -220,7 +253,7 @@ export function createSeedStore(): FwsStore {
         [calendarId]: {
           kind: 'calendar#calendarListEntry',
           id: calendarId,
-          summary: DEFAULT_EMAIL,
+          summary: userEmail,
           timeZone: 'UTC',
           accessRole: 'owner',
           defaultReminders: [],
@@ -321,103 +354,7 @@ export function createSeedStore(): FwsStore {
         },
       },
     },
-    github: {
-      user: {
-        login: 'testuser',
-        id: 1,
-        name: 'Test User',
-        email: 'testuser@example.com',
-        avatar_url: 'https://github.com/testuser.png',
-        html_url: 'https://github.com/testuser',
-        type: 'User',
-      },
-      repos: {
-        'testuser/my-project': {
-          id: 101,
-          name: 'my-project',
-          full_name: 'testuser/my-project',
-          owner: { login: 'testuser', id: 1, type: 'User' },
-          private: false,
-          html_url: 'https://github.com/testuser/my-project',
-          description: 'A sample project for testing',
-          fork: false,
-          created_at: '2026-01-01T00:00:00Z',
-          updated_at: '2026-04-07T00:00:00Z',
-          pushed_at: '2026-04-07T00:00:00Z',
-          default_branch: 'main',
-          open_issues_count: 2,
-          language: 'TypeScript',
-          topics: ['testing', 'mock'],
-        },
-      },
-      issues: {
-        'testuser/my-project': {
-          1: {
-            id: 1001,
-            number: 1,
-            title: 'Fix login bug',
-            body: 'Users are getting 401 errors when trying to log in with SSO.',
-            state: 'open',
-            labels: [{ id: 1, name: 'bug', color: 'd73a4a' }],
-            assignees: [{ login: 'testuser', id: 1 }],
-            user: { login: 'alice', id: 2 },
-            created_at: '2026-04-05T10:00:00Z',
-            updated_at: '2026-04-06T14:00:00Z',
-            closed_at: null,
-            html_url: 'https://github.com/testuser/my-project/issues/1',
-            comments: 1,
-          },
-          2: {
-            id: 1002,
-            number: 2,
-            title: 'Add dark mode support',
-            body: 'It would be great to have a dark mode option.',
-            state: 'open',
-            labels: [{ id: 2, name: 'enhancement', color: 'a2eeef' }],
-            assignees: [],
-            user: { login: 'bob', id: 3 },
-            created_at: '2026-04-06T09:00:00Z',
-            updated_at: '2026-04-06T09:00:00Z',
-            closed_at: null,
-            html_url: 'https://github.com/testuser/my-project/issues/2',
-            comments: 0,
-          },
-        },
-      },
-      pulls: {
-        'testuser/my-project': {
-          3: {
-            id: 2001,
-            number: 3,
-            title: 'Fix SSO login flow',
-            body: 'Fixes #1. Updated the auth middleware to handle SSO tokens correctly.',
-            state: 'open',
-            head: { ref: 'fix/sso-login', sha: 'abc1234', label: 'testuser:fix/sso-login' },
-            base: { ref: 'main', sha: 'def5678', label: 'testuser:main' },
-            user: { login: 'testuser', id: 1 },
-            created_at: '2026-04-07T08:00:00Z',
-            updated_at: '2026-04-07T08:00:00Z',
-            merged_at: null,
-            closed_at: null,
-            html_url: 'https://github.com/testuser/my-project/pull/3',
-            mergeable: true,
-            draft: false,
-          },
-        },
-      },
-      comments: {
-        'testuser/my-project/issues/1': [
-          {
-            id: 3001,
-            body: 'I can reproduce this. Happens with Google SSO specifically.',
-            user: { login: 'bob', id: 3 },
-            created_at: '2026-04-06T14:00:00Z',
-            updated_at: '2026-04-06T14:00:00Z',
-            html_url: 'https://github.com/testuser/my-project/issues/1#issuecomment-3001',
-          },
-        ],
-      },
-    },
+    github: createGitHubSeed(identity),
     search: createSearchSeed(),
     webFetch: createWebFetchSeed(),
   };
@@ -502,4 +439,104 @@ function createSearchSeed(): SearchStore {
   };
 }
 
-export const DEFAULT_USER_EMAIL = DEFAULT_EMAIL;
+function createGitHubSeed(identity: SeedIdentity): GitHubStore {
+  const { login, name, email, repoOwner, repoName } = identity;
+  const repoFullName = `${repoOwner}/${repoName}`;
+  return {
+    user: {
+      login,
+      id: 1,
+      name,
+      email,
+      avatar_url: `https://github.com/${login}.png`,
+      html_url: `https://github.com/${login}`,
+      type: 'User',
+    },
+    repos: {
+      [repoFullName]: {
+        id: 101,
+        name: repoName,
+        full_name: repoFullName,
+        owner: { login: repoOwner, id: 1, type: 'User' },
+        private: false,
+        html_url: `https://github.com/${repoFullName}`,
+        description: 'A sample project for testing',
+        fork: false,
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-04-07T00:00:00Z',
+        pushed_at: '2026-04-07T00:00:00Z',
+        default_branch: 'main',
+        open_issues_count: 2,
+        language: 'TypeScript',
+        topics: ['testing', 'mock'],
+      },
+    },
+    issues: {
+      [repoFullName]: {
+        1: {
+          id: 1001,
+          number: 1,
+          title: 'Fix login bug',
+          body: 'Users are getting 401 errors when trying to log in with SSO.',
+          state: 'open',
+          labels: [{ id: 1, name: 'bug', color: 'd73a4a' }],
+          assignees: [{ login, id: 1 }],
+          user: { login: 'alice', id: 2 },
+          created_at: '2026-04-05T10:00:00Z',
+          updated_at: '2026-04-06T14:00:00Z',
+          closed_at: null,
+          html_url: `https://github.com/${repoFullName}/issues/1`,
+          comments: 1,
+        },
+        2: {
+          id: 1002,
+          number: 2,
+          title: 'Add dark mode support',
+          body: 'It would be great to have a dark mode option.',
+          state: 'open',
+          labels: [{ id: 2, name: 'enhancement', color: 'a2eeef' }],
+          assignees: [],
+          user: { login: 'bob', id: 3 },
+          created_at: '2026-04-06T09:00:00Z',
+          updated_at: '2026-04-06T09:00:00Z',
+          closed_at: null,
+          html_url: `https://github.com/${repoFullName}/issues/2`,
+          comments: 0,
+        },
+      },
+    },
+    pulls: {
+      [repoFullName]: {
+        3: {
+          id: 2001,
+          number: 3,
+          title: 'Fix SSO login flow',
+          body: 'Fixes #1. Updated the auth middleware to handle SSO tokens correctly.',
+          state: 'open',
+          head: { ref: 'fix/sso-login', sha: 'abc1234', label: `${login}:fix/sso-login` },
+          base: { ref: 'main', sha: 'def5678', label: `${login}:main` },
+          user: { login, id: 1 },
+          created_at: '2026-04-07T08:00:00Z',
+          updated_at: '2026-04-07T08:00:00Z',
+          merged_at: null,
+          closed_at: null,
+          html_url: `https://github.com/${repoFullName}/pull/3`,
+          mergeable: true,
+          draft: false,
+        },
+      },
+    },
+    comments: {
+      [`${repoFullName}/issues/1`]: [
+        {
+          id: 3001,
+          body: 'I can reproduce this. Happens with Google SSO specifically.',
+          user: { login: 'bob', id: 3 },
+          created_at: '2026-04-06T14:00:00Z',
+          updated_at: '2026-04-06T14:00:00Z',
+          html_url: `https://github.com/${repoFullName}/issues/1#issuecomment-3001`,
+        },
+      ],
+    },
+  };
+}

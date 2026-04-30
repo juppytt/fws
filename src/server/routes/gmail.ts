@@ -351,7 +351,7 @@ export function gmailRoutes(): Router {
       sendAs: [
         {
           sendAsEmail: email,
-          displayName: 'Test User',
+          displayName: store.gmail.profile.displayName,
           isDefault: true,
           isPrimary: true,
           treatAsAlias: false,
@@ -372,7 +372,7 @@ export function gmailRoutes(): Router {
     }
     res.json({
       sendAsEmail: email,
-      displayName: 'Test User',
+      displayName: store.gmail.profile.displayName,
       isDefault: true,
       isPrimary: true,
       treatAsAlias: false,

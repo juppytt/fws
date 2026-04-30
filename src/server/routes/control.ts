@@ -128,7 +128,7 @@ export function controlRoutes(): Router {
       size: size ? String(size) : undefined,
       trashed: false,
       starred: false,
-      owners: [{ emailAddress: userEmail, displayName: 'Test User' }],
+      owners: [{ emailAddress: userEmail, displayName: store.gmail.profile.displayName }],
       description,
     };
 
