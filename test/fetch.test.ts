@@ -148,6 +148,58 @@ describe('Web Fetch (generic HTTP/HTTPS mock)', () => {
       expect(postData.matched).toBe('url');
       expect(postData.response.body).toBe('post-only');
     });
+
+    it('matches fixtures regardless of trailing slash on the path', async () => {
+      // Register without trailing slash, look up with one.
+      await h.fetch('/__fws/setup/fetch/fixture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: 'https://slash.test/page',
+          response: { status: 200, headers: { 'content-type': 'text/plain' }, body: 'page-no-slash' },
+        }),
+      });
+
+      const exact = await h.fetch('/__fws/fetch?url=' + encodeURIComponent('https://slash.test/page'));
+      expect((await exact.json()).matched).toBe('url');
+
+      const trailing = await h.fetch('/__fws/fetch?url=' + encodeURIComponent('https://slash.test/page/'));
+      const trailingData = await trailing.json();
+      expect(trailingData.matched).toBe('url');
+      expect(trailingData.response.body).toBe('page-no-slash');
+
+      // Inverse: register with trailing slash, look up without.
+      await h.fetch('/__fws/setup/fetch/fixture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: 'https://slash.test/dir/',
+          response: { status: 200, headers: { 'content-type': 'text/plain' }, body: 'dir-with-slash' },
+        }),
+      });
+
+      const noSlash = await h.fetch('/__fws/fetch?url=' + encodeURIComponent('https://slash.test/dir'));
+      const noSlashData = await noSlash.json();
+      expect(noSlashData.matched).toBe('url');
+      expect(noSlashData.response.body).toBe('dir-with-slash');
+    });
+
+    it('preserves the root "/" path when canonicalizing', async () => {
+      await h.fetch('/__fws/setup/fetch/fixture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: 'https://root-slash.test/',
+          response: { status: 200, body: 'root' },
+        }),
+      });
+
+      const withSlash = await h.fetch('/__fws/fetch?url=' + encodeURIComponent('https://root-slash.test/'));
+      expect((await withSlash.json()).matched).toBe('url');
+
+      const noSlash = await h.fetch('/__fws/fetch?url=' + encodeURIComponent('https://root-slash.test'));
+      expect((await noSlash.json()).matched).toBe('url');
+    });
   });
 
   describe('catch-all middleware (simulated proxy headers)', () => {
