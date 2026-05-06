@@ -191,6 +191,32 @@ interface LookupResult {
   response: WebFetchResponse;
 }
 
+/**
+ * Canonical form used for URL-based fixture lookup. Real-world callers
+ * routinely vary trailing slashes on directory-style paths
+ * (`/business` vs `/business/`); without normalization those count as
+ * distinct fixtures and lookups silently miss. We canonicalize by stripping
+ * a trailing slash from non-root paths and leaving search/hash untouched.
+ *
+ * Hostnames, ports, schemes, query strings, and fragments are passed through
+ * `URL` parsing so they are normalized in the same way the WHATWG spec does
+ * (e.g. lowercased host, default-port elision). Inputs that don't parse as
+ * URLs are returned unchanged so callers can still register exotic fixture
+ * keys if they need to.
+ */
+function canonicalUrl(input: string): string {
+  try {
+    const u = new URL(input);
+    let path = u.pathname;
+    if (path.length > 1 && path.endsWith('/')) {
+      path = path.slice(0, -1);
+    }
+    return `${u.protocol}//${u.host}${path}${u.search}${u.hash}`;
+  } catch {
+    return input;
+  }
+}
+
 function lookupFixture(url: string, method: string): LookupResult {
   const store = getStore();
   const upperMethod = method.toUpperCase();
@@ -202,10 +228,11 @@ function lookupFixture(url: string, method: string): LookupResult {
     // not parseable — host-only matches won't fire
   }
 
-  // 1. Exact URL match (with optional method filter)
+  // 1. URL match (canonicalized so trailing-slash variants match).
+  const canonicalIncoming = canonicalUrl(url);
   for (const fix of store.webFetch.fixtures) {
     if (!fix.url) continue;
-    if (fix.url !== url) continue;
+    if (canonicalUrl(fix.url) !== canonicalIncoming) continue;
     if (fix.method && fix.method.toUpperCase() !== upperMethod) continue;
     return { matched: 'url', fixture: fix, response: fix.response };
   }
