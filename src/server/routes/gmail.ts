@@ -65,7 +65,19 @@ export function gmailRoutes(): Router {
       return res.json({ id: msg.id, threadId: msg.threadId, labelIds: msg.labelIds, snippet: msg.snippet, historyId: msg.historyId, internalDate: msg.internalDate, sizeEstimate: msg.sizeEstimate, payload: { headers: msg.payload.headers } });
     }
     if (format === 'raw') {
-      return res.json({ ...msg });
+      // gws `+read --headers` requires `payload.headers` to contain Message-ID
+      // AND the `raw` field to be a base64url-encoded RFC 2822 message. Without
+      // `raw`, gws aborts the read with "Message is missing Message-ID header"
+      // because it parses headers from `raw`, not from `payload.headers`.
+      const headerLines = msg.payload.headers
+        .map((h) => `${h.name}: ${h.value}`)
+        .join('\r\n');
+      const bodyText = msg.payload.body?.data
+        ? Buffer.from(msg.payload.body.data, 'base64url').toString('utf-8')
+        : '';
+      const rawText = `${headerLines}\r\n\r\n${bodyText}`;
+      const raw = Buffer.from(rawText, 'utf-8').toString('base64url');
+      return res.json({ ...msg, raw });
     }
     // full
     res.json(msg);
