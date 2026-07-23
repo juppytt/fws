@@ -16,7 +16,7 @@ Built with [Claude Code](https://claude.ai/code).
 
 fws runs a local HTTP mock server (port 4100) and a MITM CONNECT proxy (port 4101) that intercepts HTTPS traffic to `*.googleapis.com`, `api.github.com`, and `github.com`, forwarding it to the mock server. The github.com handler speaks the git smart HTTP protocol so `git clone` / `gh repo clone` against fws-seeded repos works end-to-end.
 
-For `gws`: discovery cache URLs are rewritten to localhost, and `GOOGLE_WORKSPACE_CLI_TOKEN=fake` bypasses auth.
+For `gws`: discovery documents are staged with their original Google API URLs, all service traffic is intercepted through the proxy, and `GOOGLE_WORKSPACE_CLI_TOKEN=fake` bypasses auth. Preserving the original host and path lets policy and observability layers distinguish Gmail, Calendar, Drive, Tasks, Sheets, and People operations.
 For `gh`: `HTTPS_PROXY` routes traffic through the MITM proxy, and `GH_TOKEN=fake` bypasses auth.
 
 All data lives **in memory**. When the server stops, everything is lost unless you save a snapshot first. Use `fws snapshot save` to persist state.
@@ -199,7 +199,7 @@ prefix the call with `GH_REPO=owner/repo`.
 bin/fws.ts              CLI entry point
 src/server/routes/      Gmail, Calendar, Drive, and control API routes
 src/store/              In-memory data store + seed data
-src/config/             Discovery cache URL rewriting
+src/config/             Discovery cache staging
 src/proxy/              MITM proxy for helper commands
 test/                   Vitest tests (with gws CLI validation)
 docs/                   API support documentation
