@@ -27,13 +27,12 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
           cache: 'npm'
 
-      # Trusted publishing (OIDC) requires npm >= 11.5.1. Node 20 ships with
-      # an older npm that silently falls back to unauthenticated publishes,
-      # which the registry rejects with a misleading 404.
+      # Trusted publishing (OIDC) requires npm >= 11.5.1. Upgrade explicitly
+      # so the workflow does not depend on the npm version bundled with Node.
       - name: Upgrade npm to latest
         run: npm install -g npm@latest
 
