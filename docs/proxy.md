@@ -51,6 +51,10 @@ proxy.
    proxy doesn't close the socket after one response — see #7 / mitm
    keep-alive).
 
+The staged `gws` discovery documents retain their original Google API URLs, so
+regular discovery-backed methods and helper commands both enter this path with
+their service hostname and HTTP path intact.
+
 ### Plain HTTP
 
 1. Client sends the request directly to the proxy with an absolute URL

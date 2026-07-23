@@ -3,6 +3,8 @@
 fws currently mocks **104 REST endpoints + 5 helpers** across 6 of 17 gws services.
 
 All supported endpoints are validated through actual `gws` CLI commands in `test/gws-validation.test.ts` (89 tests).
+Regular discovery-backed methods and helpers both retain their Google API
+hostname and path and transit the fws MITM proxy.
 
 ## Summary
 

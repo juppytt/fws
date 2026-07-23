@@ -16,9 +16,9 @@ export interface TestHarness {
   caBundlePath: string;
   /** Direct HTTP fetch against mock server */
   fetch: (urlPath: string, init?: RequestInit) => Promise<Response>;
-  /** Run gws command (uses discovery cache rewriting for regular commands) */
+  /** Run gws command through the MITM proxy. */
   gws: (args: string) => Promise<{ stdout: string; stderr: string; exitCode: number }>;
-  /** Run gws command with MITM proxy (for helper commands like +triage) */
+  /** Backward-compatible alias for running gws through the MITM proxy. */
   gwsProxy: (args: string) => Promise<{ stdout: string; stderr: string; exitCode: number }>;
   /** Run gh command with MITM proxy */
   ghProxy: (args: string) => Promise<{ stdout: string; stderr: string; exitCode: number }>;
@@ -119,7 +119,7 @@ export async function createTestHarness(): Promise<TestHarness> {
     caBundlePath: bundlePath,
     fetch: (urlPath: string, init?: RequestInit) =>
       globalThis.fetch(`http://localhost:${port}${urlPath}`, init),
-    gws: (args: string) => runCmd(gwsPath, args, baseEnv),
+    gws: (args: string) => runCmd(gwsPath, args, proxyEnv),
     gwsProxy: (args: string) => runCmd(gwsPath, args, proxyEnv),
     ghProxy: (args: string) => runCmd(ghPath, args, ghEnv),
     ghProxyWithRepo: (args: string) => runCmd(ghPath, args, ghEnvWithRepo),

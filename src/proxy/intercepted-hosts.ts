@@ -25,6 +25,9 @@ export const INTERCEPTED_HOSTS: readonly string[] = [
   'people.googleapis.com',
   'sheets.googleapis.com',
   'admin.googleapis.com',
+  // Matches service-specific mTLS discovery hosts such as
+  // gmail.mtls.googleapis.com when clients explicitly select mTLS endpoints.
+  'mtls.googleapis.com',
   // GitHub
   'api.github.com',
   // github.com is intercepted for git smart HTTP (clone/fetch against

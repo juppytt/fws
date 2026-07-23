@@ -62,23 +62,13 @@ async function readOrDownload(file: string, api: string, version: string): Promi
   return text;
 }
 
-export async function generateConfigDir(port: number, targetDir: string): Promise<string> {
+export async function generateConfigDir(_port: number, targetDir: string): Promise<string> {
   const cacheDir = path.join(targetDir, 'cache');
   await fs.mkdir(cacheDir, { recursive: true });
-
-  const localUrl = `http://localhost:${port}/`;
 
   for (const { file, api, version } of DISCOVERY_SOURCES) {
     const raw = await readOrDownload(file, api, version);
     const data = JSON.parse(raw);
-
-    data.rootUrl = localUrl;
-    if (data.baseUrl) {
-      data.baseUrl = localUrl + (data.servicePath || '');
-    }
-    if (data.mtlsRootUrl) {
-      data.mtlsRootUrl = localUrl;
-    }
 
     await fs.writeFile(path.join(cacheDir, file), JSON.stringify(data));
   }

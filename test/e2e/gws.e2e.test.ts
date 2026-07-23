@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 import { startFwsDaemon, type CliHarness } from './helpers/cli-harness.js';
 
 /**
@@ -7,9 +9,8 @@ import { startFwsDaemon, type CliHarness } from './helpers/cli-harness.js';
  * but talks to a real daemon instead of an in-process Express app, so it
  * exercises:
  *
- *  - the discovery cache rewritten on disk by `fws server start`
- *  - the MITM proxy across processes (helpers like +triage / +send /
- *    +reply / +forward go via HTTPS_PROXY)
+ *  - the discovery cache staged on disk by `fws server start`
+ *  - the MITM proxy across processes for regular and helper commands
  *  - keep-alive across multiple requests per host (regression: #7)
  *
  * The coverage is intentionally broad rather than exhaustive: one or two
@@ -26,6 +27,14 @@ describe('e2e: gws CLI against real daemon', () => {
 
   afterAll(async () => {
     await h.stop();
+  });
+
+  it('preserves Google API hosts in the staged discovery cache', async () => {
+    const gmail = JSON.parse(
+      await readFile(path.join(h.configDir, 'cache', 'gmail_v1.json'), 'utf-8'),
+    );
+    expect(gmail.rootUrl).toBe('https://gmail.googleapis.com/');
+    expect(gmail.baseUrl).toBe('https://gmail.googleapis.com/');
   });
 
   // ===== Gmail =====
