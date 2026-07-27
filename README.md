@@ -98,6 +98,7 @@ fws calendar add --summary "Team sync" --start 2026-04-08T15:00:00 --duration 1h
 fws drive    add --name "report.pdf" --mimeType application/pdf
 fws search   add --keywords python,py --results '[{"title":"Python","link":"https://python.org/","displayLink":"python.org","snippet":"..."}]'
 fws fetch    add --url https://api.example.com/v1/echo --status 200 --body '{"hello":"world"}' --header 'content-type: application/json'
+fws service  register ./service.json
 ```
 
 `fws fetch add` is the entry point to **Web Fetch** — a generic mock for
@@ -105,6 +106,11 @@ arbitrary HTTP/HTTPS URLs. Adding a fixture for a URL or host
 automatically makes that host eligible for proxy interception, so any
 client routed through `HTTPS_PROXY` will see the mock instead of hitting
 the real internet.
+
+`fws service register` adds a stateful, declarative mock HTTP service. Custom
+services support parameterized routes, request-derived state transitions,
+dynamic responses, request logs, snapshots, and optional out-of-process Python
+handlers. See [Custom services](docs/custom-services.md).
 
 ### Snapshots
 

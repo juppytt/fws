@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import net from 'node:net';
 import tls from 'node:tls';
 import https from 'node:https';
+import { once } from 'node:events';
 import path from 'node:path';
 import type { Server } from 'node:http';
 
@@ -49,6 +50,7 @@ async function newProxy(): Promise<{
   });
   const mockPort = (mockServer.address() as { port: number }).port;
   const proxyServer = startMitmProxy(mockPort, 0);
+  if (!proxyServer.listening) await once(proxyServer, 'listening');
   const proxyPort = (proxyServer.address() as { port: number }).port;
   return { mockServer, proxyServer, proxyPort, mockPort, caBundle, dataDir };
 }

@@ -71,7 +71,7 @@ serverCmd
 
       const app = createApp();
       const server: Server = await new Promise((resolve) => {
-        const s = app.listen(port, () => resolve(s));
+        const s = app.listen(port, '127.0.0.1', () => resolve(s));
       });
 
       // Start MITM proxy for helper commands (+triage, +send, etc.)
@@ -487,6 +487,57 @@ program
         console.log('Fetch fixture added');
       }),
   );
+
+// fws service register/state/requests/delete
+const customServiceCmd = program
+  .command('service')
+  .description('Register and inspect declarative custom mock services');
+
+customServiceCmd
+  .command('register <file>')
+  .description('Register a custom service from a JSON definition')
+  .option('-p, --port <port>', 'Server port', String(DEFAULT_PORT))
+  .action(async (file, opts) => {
+    const definitionPath = path.resolve(file);
+    const definition = JSON.parse(await fs.readFile(definitionPath, 'utf-8'));
+    if (definition.handler?.type === 'python' && typeof definition.handler.script === 'string') {
+      definition.handler.script = path.resolve(path.dirname(definitionPath), definition.handler.script);
+    }
+    const data = await postSetup(parseInt(opts.port), '/__fws/setup/service/register', definition);
+    console.log(`Custom service ${data.status}: ${data.host}`);
+  });
+
+customServiceCmd
+  .command('state <host>')
+  .description("Print a custom service's current state")
+  .option('-p, --port <port>', 'Server port', String(DEFAULT_PORT))
+  .action(async (host, opts) => {
+    const res = await fetch(`http://localhost:${parseInt(opts.port)}/__fws/service/${encodeURIComponent(host)}/state`);
+    if (!res.ok) throw new Error(`state lookup failed: ${res.status} ${await res.text()}`);
+    console.log(JSON.stringify(await res.json(), null, 2));
+  });
+
+customServiceCmd
+  .command('requests <host>')
+  .description("Print a custom service's request log")
+  .option('-p, --port <port>', 'Server port', String(DEFAULT_PORT))
+  .action(async (host, opts) => {
+    const res = await fetch(`http://localhost:${parseInt(opts.port)}/__fws/service/${encodeURIComponent(host)}/requests`);
+    if (!res.ok) throw new Error(`request lookup failed: ${res.status} ${await res.text()}`);
+    console.log(JSON.stringify(await res.json(), null, 2));
+  });
+
+customServiceCmd
+  .command('delete <host>')
+  .description('Delete a custom service')
+  .option('-p, --port <port>', 'Server port', String(DEFAULT_PORT))
+  .action(async (host, opts) => {
+    const res = await fetch(`http://localhost:${parseInt(opts.port)}/__fws/service/${encodeURIComponent(host)}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) throw new Error(`delete failed: ${res.status} ${await res.text()}`);
+    console.log(`Custom service deleted: ${host}`);
+  });
 
 // === Reset command ===
 program

@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { hasFixtureForHost } from '../server/routes/fetch.js';
+import { hasCustomServiceHost } from '../server/routes/custom-service.js';
 import { isAllowlistedHost } from './intercepted-hosts.js';
 
 interface CertPair {
@@ -160,7 +161,7 @@ async function getHostCert(hostname: string): Promise<CertPair> {
  */
 function shouldInterceptHost(hostname: string): boolean {
   if (isAllowlistedHost(hostname)) return true;
-  return hasFixtureForHost(hostname);
+  return hasFixtureForHost(hostname) || hasCustomServiceHost(hostname);
 }
 
 export function startMitmProxy(mockPort: number, proxyPort: number): http.Server {
@@ -223,7 +224,7 @@ export function startMitmProxy(mockPort: number, proxyPort: number): http.Server
     }
   });
 
-  proxy.listen(proxyPort);
+  proxy.listen(proxyPort, '127.0.0.1');
   return proxy;
 }
 
@@ -283,13 +284,13 @@ function handlePlainHttp(
   // canonical URL for fixture lookup.
   const mockReq = http.request(
     {
-      hostname: 'localhost',
+      hostname: '127.0.0.1',
       port: mockPort,
       method: req.method,
       path: parsed.pathname + parsed.search,
       headers: {
         ...req.headers,
-        host: `localhost:${mockPort}`,
+        host: `127.0.0.1:${mockPort}`,
         'x-fws-original-host': hostname,
         'x-fws-original-scheme': 'http',
       },
@@ -384,13 +385,13 @@ function handleInterceptedRequest(tlsSocket: tls.TLSSocket, hostname: string, mo
   ) => {
     const mockReq = http.request(
       {
-        hostname: 'localhost',
+        hostname: '127.0.0.1',
         port: mockPort,
         path: urlPath,
         method,
         headers: {
           ...headers,
-          host: `localhost:${mockPort}`,
+          host: `127.0.0.1:${mockPort}`,
           // Markers for the Web Fetch catch-all so it can build the
           // canonical URL for fixture lookup.
           'x-fws-original-host': hostname,
