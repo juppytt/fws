@@ -45,10 +45,12 @@ serverCmd
   .command('start')
   .description('Start the mock server in the background')
   .option('-p, --port <port>', 'Port number', String(DEFAULT_PORT))
+  .option('--proxy-port <port>', 'MITM proxy port (defaults to server port + 1)')
   .option('-s, --snapshot <name>', 'Load a snapshot on start')
   .option('--foreground', 'Run in foreground (used internally)')
   .action(async (opts) => {
     const port = parseInt(opts.port);
+    const proxyPort = opts.proxyPort === undefined ? port + 1 : parseInt(opts.proxyPort);
 
     if (opts.foreground) {
       // Actually run the server (called by the background spawner below)
@@ -75,7 +77,6 @@ serverCmd
       });
 
       // Start MITM proxy for helper commands (+triage, +send, etc.)
-      const proxyPort = port + 1;
       const proxyServer = startMitmProxy(port, proxyPort);
 
       await ensureDir(getDataDir());
@@ -114,6 +115,7 @@ serverCmd
     const logFd = await fs.open(logFile, 'w');
 
     const args = ['server', 'start', '--foreground', '-p', String(port)];
+    if (opts.proxyPort !== undefined) args.push('--proxy-port', String(proxyPort));
     if (opts.snapshot) args.push('-s', opts.snapshot);
 
     const tsxPath = path.join(import.meta.dirname, '..', 'node_modules', '.bin', 'tsx');
@@ -143,16 +145,16 @@ serverCmd
     if (started) {
       // Read server info to get caPath and proxyPort
       const serverInfo = JSON.parse(await fs.readFile(getServerInfoPath(), 'utf-8').catch(() => '{}'));
-      const proxyPort = serverInfo.proxyPort || port + 1;
+      const runningProxyPort = serverInfo.proxyPort || proxyPort;
       const bundlePath = serverInfo.bundlePath || path.join(getDataDir(), 'certs', 'ca-bundle.crt');
 
-      console.log(`fws server started on port ${port} (pid ${child.pid})\n`);
+      console.log(`fws server started on port ${port}, proxy port ${runningProxyPort} (pid ${child.pid})\n`);
       console.log(`Run this to configure your shell:\n`);
       console.log(`  eval $(fws server env)\n`);
       console.log(`Or set manually:\n`);
       console.log(`  export GOOGLE_WORKSPACE_CLI_CONFIG_DIR=${configDir}`);
       console.log(`  export GOOGLE_WORKSPACE_CLI_TOKEN=fake`);
-      console.log(`  export HTTPS_PROXY=http://localhost:${proxyPort}`);
+      console.log(`  export HTTPS_PROXY=http://localhost:${runningProxyPort}`);
       console.log(`  export SSL_CERT_FILE=${bundlePath}`);
       console.log(`  export GH_TOKEN=fake\n`);
       console.log(`gh reads owner/repo from the current checkout's .git/config —`);

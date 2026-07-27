@@ -66,6 +66,7 @@ The server starts with sample seed data so you can try commands immediately.
 
 ```bash
 fws server start                  # Start in background
+fws server start --proxy-port 4200 # Choose the MITM proxy port explicitly
 fws server status                 # Check if running
 fws server stop                   # Stop
 fws server start --foreground     # Run in foreground (for debugging)
