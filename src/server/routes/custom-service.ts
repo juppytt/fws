@@ -45,7 +45,7 @@ export function customServiceRoutes(): Router {
     }
 
     const service = normalizeService(req.body);
-    if (service.handler) {
+    if (service.handler?.script) {
       try {
         service.handler.script = await resolveTrustedHandlerPath(service.handler.script);
       } catch (error) {
@@ -262,8 +262,16 @@ function validateHandler(value: unknown): string | null {
   if (!isPlainObject(value) || value.type !== 'python') {
     return 'handler must have type "python"';
   }
-  if (typeof value.script !== 'string' || !value.script.startsWith('/')) {
+  const hasScript = typeof value.script === 'string';
+  const hasModule = typeof value.module === 'string';
+  if (hasScript === hasModule) {
+    return 'handler must specify exactly one of script or module';
+  }
+  if (hasScript && !(value.script as string).startsWith('/')) {
     return 'handler.script must be an absolute path';
+  }
+  if (hasModule && !/^[a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)*$/.test(value.module as string)) {
+    return 'handler.module must be an importable Python module name';
   }
   if (
     value.timeoutMs !== undefined
@@ -282,12 +290,14 @@ async function runPythonHandler(
   response: { status?: number; headers?: Record<string, string>; body?: JsonValue };
 }> {
   if (!service.handler) throw new Error('python handler is not configured');
-  const trustedScript = await resolveTrustedHandlerPath(service.handler.script);
+  const target = service.handler.script
+    ? { type: 'script' as const, value: await resolveTrustedHandlerPath(service.handler.script) }
+    : { type: 'module' as const, value: service.handler.module! };
   const input = JSON.stringify({ state: service.state, request });
   const python = process.env.FWS_PYTHON || 'python3';
   const stdout = await executePython(
     python,
-    trustedScript,
+    target,
     input,
     service.handler.timeoutMs ?? DEFAULT_PYTHON_TIMEOUT_MS,
   );
@@ -360,9 +370,15 @@ async function resolveTrustedHandlerPath(script: string): Promise<string> {
   );
 }
 
-function executePython(python: string, script: string, input: string, timeoutMs: number): Promise<string> {
+function executePython(
+  python: string,
+  target: { type: 'script' | 'module'; value: string },
+  input: string,
+  timeoutMs: number,
+): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn(python, [script], { stdio: ['pipe', 'pipe', 'pipe'] });
+    const args = target.type === 'module' ? ['-m', target.value] : [target.value];
+    const child = spawn(python, args, { stdio: ['pipe', 'pipe', 'pipe'] });
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
     let outputBytes = 0;

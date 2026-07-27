@@ -146,3 +146,17 @@ daemon was started. Set `FWS_HANDLER_ROOTS` to a platform-delimited list of
 additional trusted directories. Handler requests are serialized per service,
 so concurrent writes cannot overwrite each other's state. Use declarative
 routes when arbitrary code is unnecessary.
+
+Installed packages can use a module instead of a script path:
+
+```json
+{
+  "handler": {
+    "type": "python",
+    "module": "my_package.fws_handler"
+  }
+}
+```
+
+Module handlers run as `python3 -m my_package.fws_handler`, avoiding import
+shadowing that can occur when a package-internal file is executed directly.

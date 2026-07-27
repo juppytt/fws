@@ -299,6 +299,30 @@ describe('custom services', () => {
     expect(response.status).toBe(502);
     expect((await response.json()).error).toContain('must be under');
   });
+
+  it('validates Python module handler names', async () => {
+    const valid = await h.fetch('/__fws/setup/service/register', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        host: 'module.test',
+        state: {},
+        handler: { type: 'python', module: 'package.mock_handler' },
+      }),
+    });
+    expect(valid.status).toBe(200);
+
+    const invalid = await h.fetch('/__fws/setup/service/register', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        host: 'bad-module.test',
+        state: {},
+        handler: { type: 'python', module: 'package; os.system("bad")' },
+      }),
+    });
+    expect(invalid.status).toBe(400);
+  });
 });
 
 function registerBank(h: TestHarness): Promise<Response> {

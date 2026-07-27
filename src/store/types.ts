@@ -396,7 +396,9 @@ export interface CustomService {
 export interface CustomServiceHandler {
   type: 'python';
   /** Absolute path to a trusted Python script on the fws host. */
-  script: string;
+  script?: string;
+  /** Importable module executed with `python -m`, e.g. package.mock_handler. */
+  module?: string;
   /** Per-request execution deadline. */
   timeoutMs?: number;
 }
