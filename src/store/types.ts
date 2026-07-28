@@ -10,6 +10,7 @@ export interface FwsStore {
   github: GitHubStore;
   search: SearchStore;
   webFetch: WebFetchStore;
+  customServices: CustomServicesStore;
 }
 
 // === Gmail ===
@@ -374,4 +375,65 @@ export interface WebFetchResponse {
   body: string;
   /** When set to 'base64', the body is base64-encoded and will be decoded to a Buffer before sending. */
   bodyEncoding?: 'base64';
+}
+
+// === Custom services ===
+
+export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
+
+export interface CustomServicesStore {
+  services: Record<string, CustomService>;
+}
+
+export interface CustomService {
+  host: string;
+  state: { [key: string]: JsonValue };
+  routes: CustomServiceRoute[];
+  handler?: CustomServiceHandler;
+  requests: CustomServiceRequest[];
+}
+
+export interface CustomServiceHandler {
+  type: 'python';
+  /** Absolute path to a trusted Python script on the fws host. */
+  script?: string;
+  /** Importable module executed with `python -m`, e.g. package.mock_handler. */
+  module?: string;
+  /** Per-request execution deadline. */
+  timeoutMs?: number;
+}
+
+export interface CustomServiceRoute {
+  method: string;
+  /** Exact path or a parameterized path such as /channels/:channel/messages. */
+  path: string;
+  transitions?: CustomServiceTransition[];
+  response?: {
+    status?: number;
+    headers?: Record<string, string>;
+    body?: JsonValue;
+  };
+}
+
+export interface CustomServiceTransition {
+  op: 'set' | 'append' | 'increment' | 'delete';
+  /** Dot-separated path under the service's state object. */
+  path: string;
+  /**
+   * Literal JSON or an expression such as "$request.body.amount" or
+   * "$state.balance". Expressions can also be interpolated into strings.
+   */
+  value?: JsonValue;
+  /** Applied to numeric values before an increment, e.g. -1 for a debit. */
+  multiplier?: number;
+}
+
+export interface CustomServiceRequest {
+  timestamp: string;
+  method: string;
+  path: string;
+  params: Record<string, string>;
+  query: Record<string, string | string[]>;
+  headers: Record<string, string | string[]>;
+  body: JsonValue | null;
 }

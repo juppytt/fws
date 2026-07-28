@@ -355,6 +355,7 @@ export function createSeedStore(identity: SeedIdentity = resolveSeedIdentity()):
     github: createGitHubSeed(identity),
     search: createSearchSeed(),
     webFetch: createWebFetchSeed(),
+    customServices: { services: {} },
   };
 }
 

@@ -9,6 +9,7 @@ import { githubRoutes } from './routes/github.js';
 import { gitHttpRoutes } from './routes/git-http.js';
 import { searchRoutes } from './routes/search.js';
 import { webFetchRoutes, webFetchHostDispatcher } from './routes/fetch.js';
+import { customServiceRoutes, customServiceDispatcher } from './routes/custom-service.js';
 import { controlRoutes } from './routes/control.js';
 import { errorHandler } from './middleware.js';
 
@@ -17,7 +18,9 @@ export function createApp(): express.Express {
   app.use(express.json({ limit: '10mb' }));
 
   app.use(controlRoutes());
+  app.use(customServiceRoutes());
 
+  app.use(customServiceDispatcher());
   // Web Fetch host dispatcher runs BEFORE the service routes. For
   // requests forwarded by the MITM proxy with X-Fws-Original-Host set to
   // a non-allowlisted host (i.e. an arbitrary host that only got

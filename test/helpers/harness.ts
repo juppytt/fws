@@ -3,6 +3,7 @@ import { resetStore } from '../../src/store/index.js';
 import { generateConfigDir } from '../../src/config/rewrite-cache.js';
 import { generateCACert, startMitmProxy } from '../../src/proxy/mitm.js';
 import { execFile } from 'node:child_process';
+import { once } from 'node:events';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -43,6 +44,7 @@ export async function createTestHarness(): Promise<TestHarness> {
   const dataDir = await mkdtemp(path.join(tmpdir(), 'fws-test-data-'));
   const { bundlePath } = await generateCACert(dataDir);
   const proxyServer = startMitmProxy(port, 0); // random port
+  if (!proxyServer.listening) await once(proxyServer, 'listening');
   const proxyPort = (proxyServer.address() as any).port as number;
 
   const baseEnv = {

@@ -45,10 +45,12 @@ serverCmd
   .command('start')
   .description('Start the mock server in the background')
   .option('-p, --port <port>', 'Port number', String(DEFAULT_PORT))
+  .option('--proxy-port <port>', 'MITM proxy port (defaults to server port + 1)')
   .option('-s, --snapshot <name>', 'Load a snapshot on start')
   .option('--foreground', 'Run in foreground (used internally)')
   .action(async (opts) => {
     const port = parseInt(opts.port);
+    const proxyPort = opts.proxyPort === undefined ? port + 1 : parseInt(opts.proxyPort);
 
     if (opts.foreground) {
       // Actually run the server (called by the background spawner below)
@@ -71,11 +73,10 @@ serverCmd
 
       const app = createApp();
       const server: Server = await new Promise((resolve) => {
-        const s = app.listen(port, () => resolve(s));
+        const s = app.listen(port, '127.0.0.1', () => resolve(s));
       });
 
       // Start MITM proxy for helper commands (+triage, +send, etc.)
-      const proxyPort = port + 1;
       const proxyServer = startMitmProxy(port, proxyPort);
 
       await ensureDir(getDataDir());
@@ -114,6 +115,7 @@ serverCmd
     const logFd = await fs.open(logFile, 'w');
 
     const args = ['server', 'start', '--foreground', '-p', String(port)];
+    if (opts.proxyPort !== undefined) args.push('--proxy-port', String(proxyPort));
     if (opts.snapshot) args.push('-s', opts.snapshot);
 
     const tsxPath = path.join(import.meta.dirname, '..', 'node_modules', '.bin', 'tsx');
@@ -143,16 +145,16 @@ serverCmd
     if (started) {
       // Read server info to get caPath and proxyPort
       const serverInfo = JSON.parse(await fs.readFile(getServerInfoPath(), 'utf-8').catch(() => '{}'));
-      const proxyPort = serverInfo.proxyPort || port + 1;
+      const runningProxyPort = serverInfo.proxyPort || proxyPort;
       const bundlePath = serverInfo.bundlePath || path.join(getDataDir(), 'certs', 'ca-bundle.crt');
 
-      console.log(`fws server started on port ${port} (pid ${child.pid})\n`);
+      console.log(`fws server started on port ${port}, proxy port ${runningProxyPort} (pid ${child.pid})\n`);
       console.log(`Run this to configure your shell:\n`);
       console.log(`  eval $(fws server env)\n`);
       console.log(`Or set manually:\n`);
       console.log(`  export GOOGLE_WORKSPACE_CLI_CONFIG_DIR=${configDir}`);
       console.log(`  export GOOGLE_WORKSPACE_CLI_TOKEN=fake`);
-      console.log(`  export HTTPS_PROXY=http://localhost:${proxyPort}`);
+      console.log(`  export HTTPS_PROXY=http://localhost:${runningProxyPort}`);
       console.log(`  export SSL_CERT_FILE=${bundlePath}`);
       console.log(`  export GH_TOKEN=fake\n`);
       console.log(`gh reads owner/repo from the current checkout's .git/config —`);
@@ -487,6 +489,57 @@ program
         console.log('Fetch fixture added');
       }),
   );
+
+// fws service register/state/requests/delete
+const customServiceCmd = program
+  .command('service')
+  .description('Register and inspect declarative custom mock services');
+
+customServiceCmd
+  .command('register <file>')
+  .description('Register a custom service from a JSON definition')
+  .option('-p, --port <port>', 'Server port', String(DEFAULT_PORT))
+  .action(async (file, opts) => {
+    const definitionPath = path.resolve(file);
+    const definition = JSON.parse(await fs.readFile(definitionPath, 'utf-8'));
+    if (definition.handler?.type === 'python' && typeof definition.handler.script === 'string') {
+      definition.handler.script = path.resolve(path.dirname(definitionPath), definition.handler.script);
+    }
+    const data = await postSetup(parseInt(opts.port), '/__fws/setup/service/register', definition);
+    console.log(`Custom service ${data.status}: ${data.host}`);
+  });
+
+customServiceCmd
+  .command('state <host>')
+  .description("Print a custom service's current state")
+  .option('-p, --port <port>', 'Server port', String(DEFAULT_PORT))
+  .action(async (host, opts) => {
+    const res = await fetch(`http://localhost:${parseInt(opts.port)}/__fws/service/${encodeURIComponent(host)}/state`);
+    if (!res.ok) throw new Error(`state lookup failed: ${res.status} ${await res.text()}`);
+    console.log(JSON.stringify(await res.json(), null, 2));
+  });
+
+customServiceCmd
+  .command('requests <host>')
+  .description("Print a custom service's request log")
+  .option('-p, --port <port>', 'Server port', String(DEFAULT_PORT))
+  .action(async (host, opts) => {
+    const res = await fetch(`http://localhost:${parseInt(opts.port)}/__fws/service/${encodeURIComponent(host)}/requests`);
+    if (!res.ok) throw new Error(`request lookup failed: ${res.status} ${await res.text()}`);
+    console.log(JSON.stringify(await res.json(), null, 2));
+  });
+
+customServiceCmd
+  .command('delete <host>')
+  .description('Delete a custom service')
+  .option('-p, --port <port>', 'Server port', String(DEFAULT_PORT))
+  .action(async (host, opts) => {
+    const res = await fetch(`http://localhost:${parseInt(opts.port)}/__fws/service/${encodeURIComponent(host)}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) throw new Error(`delete failed: ${res.status} ${await res.text()}`);
+    console.log(`Custom service deleted: ${host}`);
+  });
 
 // === Reset command ===
 program

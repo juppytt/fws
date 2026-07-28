@@ -12,7 +12,11 @@ export function resetStore(): void {
 }
 
 export function loadStore(data: FwsStore): void {
-  store = data;
+  store = {
+    ...data,
+    // Keep snapshots from releases before custom services loadable.
+    customServices: data.customServices ?? { services: {} },
+  };
 }
 
 export function serializeStore(): string {

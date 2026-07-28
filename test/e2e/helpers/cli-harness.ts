@@ -152,6 +152,8 @@ async function waitForHealth(port: number, timeoutMs = 8000): Promise<void> {
 export async function startFwsDaemon(opts: StartOptions = {}): Promise<CliHarness> {
   const fwsBin = opts.fwsBin ?? FWS_BIN;
   const port = await getFreePort();
+  let proxyPort = await getFreePort();
+  while (proxyPort === port) proxyPort = await getFreePort();
   const dataDir = await mkdtemp(path.join(tmpdir(), 'fws-e2e-data-'));
   const configDir = path.join(dataDir, 'config');
 
@@ -162,7 +164,7 @@ export async function startFwsDaemon(opts: StartOptions = {}): Promise<CliHarnes
 
   const startResult = await runCmd(
     'node',
-    [fwsBin, 'server', 'start', '-p', String(port)],
+    [fwsBin, 'server', 'start', '-p', String(port), '--proxy-port', String(proxyPort)],
     env,
     20000,
   );
