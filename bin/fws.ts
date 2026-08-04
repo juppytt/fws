@@ -155,6 +155,8 @@ serverCmd
       console.log(`  export GOOGLE_WORKSPACE_CLI_CONFIG_DIR=${configDir}`);
       console.log(`  export GOOGLE_WORKSPACE_CLI_TOKEN=fake`);
       console.log(`  export HTTPS_PROXY=http://localhost:${runningProxyPort}`);
+      console.log(`  export HTTP_PROXY=http://localhost:${runningProxyPort}`);
+      console.log(`  export http_proxy=http://localhost:${runningProxyPort}`);
       console.log(`  export SSL_CERT_FILE=${bundlePath}`);
       console.log(`  export GH_TOKEN=fake\n`);
       console.log(`gh reads owner/repo from the current checkout's .git/config —`);
@@ -201,6 +203,8 @@ serverCmd
       console.log(`export GOOGLE_WORKSPACE_CLI_CONFIG_DIR=${configDir}`);
       console.log(`export GOOGLE_WORKSPACE_CLI_TOKEN=fake`);
       console.log(`export HTTPS_PROXY=http://localhost:${proxyPort}`);
+      console.log(`export HTTP_PROXY=http://localhost:${proxyPort}`);
+      console.log(`export http_proxy=http://localhost:${proxyPort}`);
       console.log(`export SSL_CERT_FILE=${bundlePath}`);
       console.log(`export GH_TOKEN=fake`);
     } catch {

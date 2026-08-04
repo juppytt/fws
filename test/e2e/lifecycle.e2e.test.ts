@@ -3,6 +3,8 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { startFwsDaemon, type CliHarness } from './helpers/cli-harness.js';
 
+const FWS_BIN = path.resolve(import.meta.dirname, '..', '..', 'bin', 'fws-cli.js');
+
 /**
  * Exercises the real `fws server start` → daemon → `fws server stop` lifecycle.
  * If this fails, the daemonization code in bin/fws.ts is broken.
@@ -42,6 +44,14 @@ describe('e2e: fws daemon lifecycle', () => {
       const res = await h.fetch('/__fws/status');
       expect(res.status).toBe(200);
     }
+  });
+
+  it('prints proxy variables for HTTPS and plain HTTP clients', async () => {
+    const result = await h.run('node', [FWS_BIN, 'server', 'env']);
+    expect(result.exitCode, result.stderr).toBe(0);
+    expect(result.stdout).toContain(`export HTTPS_PROXY=http://localhost:${h.proxyPort}`);
+    expect(result.stdout).toContain(`export HTTP_PROXY=http://localhost:${h.proxyPort}`);
+    expect(result.stdout).toContain(`export http_proxy=http://localhost:${h.proxyPort}`);
   });
 });
 
