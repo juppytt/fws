@@ -1,8 +1,12 @@
 # gws API Support Status
 
-fws currently mocks **104 REST endpoints + 5 helpers** across 6 of 17 gws services.
+fws currently provides functional route implementations for **113 REST
+methods + 5 helpers** across 6 of 17 gws services. Another 6 methods have
+placeholder routes that return stub responses without implementing the
+underlying behavior.
 
-All supported endpoints are validated through actual `gws` CLI commands in `test/gws-validation.test.ts` (89 tests).
+Entries marked ✅ are validated through actual `gws` CLI commands in
+`test/gws-validation.test.ts`.
 Regular discovery-backed methods and helpers both retain their Google API
 hostname and path and transit the fws MITM proxy.
 
@@ -10,12 +14,12 @@ hostname and path and transit the fws MITM proxy.
 
 | Service | Status | Implemented | Total | Notes |
 |---------|--------|-------------|-------|-------|
-| Gmail | Partial | 28 + 5 helpers | 79 | Messages (incl. batch/import), labels, threads (CRUD), profile, drafts, history, settings, +triage/+send/+reply/+forward |
+| Gmail | Partial | 34 + 5 helpers | 79 | Messages (incl. batch/import), labels, threads (CRUD), profile, drafts, history, settings, +triage/+send/+reply/+forward |
 | Calendar | Partial | 21 | 37 | Calendars (CRUD+clear), calendarList (CRUD), events (CRUD+import/move/quickAdd) |
-| Drive | Partial | 18 | 57 | Files (CRUD+copy+emptyTrash), permissions (CRUD), drives (list/create), about |
+| Drive | Partial | 18 | 64 | Files (CRUD+copy+emptyTrash), permissions (CRUD), drives (CRUD), about |
 | Tasks | Full | 14 | 14 | Task lists CRUD, tasks CRUD/move/clear |
-| Sheets | Partial | 7 | 17 | Spreadsheets create/get/batchUpdate, values get/update/append/clear |
-| People | Partial | 16 | 24 | Contacts CRUD/search/batch, contact groups CRUD, connections |
+| Sheets | Partial | 7 + 3 stubs | 17 | Spreadsheets create/get, sheet copy, values get/update/append/clear; batchUpdate routes are stubs |
+| People | Partial | 19 + 3 stubs | 24 | Contacts CRUD/search/batch, contact groups CRUD/batch, connections; Other Contacts routes are stubs |
 | Events | Not yet | 0 | 15 | |
 | Docs | Not yet | — | — | |
 | Slides | Not yet | — | — | |
@@ -28,11 +32,11 @@ hostname and path and transit the fws MITM proxy.
 | Model Armor | Not yet | — | — | |
 | Workflow | Not yet | — | — | |
 
-**Status legend:** ✅ Supported + gws-tested · ⚠️ Supported (HTTP only, not gws-tested) · — Not implemented
+**Status legend:** ✅ Supported + gws-tested · ⚠️ Implemented, but without a committed gws regression test · ◑ Stub response only · — Not implemented
 
 ---
 
-## Gmail (28/79 + 5 helpers)
+## Gmail (34/79 + 5 helpers)
 
 ### Helpers
 
@@ -43,7 +47,7 @@ hostname and path and transit the fws MITM proxy.
 | `gmail +reply` | ✅ gws-tested | Via MITM proxy |
 | `gmail +reply-all` | ✅ gws-tested | Via MITM proxy |
 | `gmail +forward` | ✅ gws-tested | Via MITM proxy |
-| `gmail +watch` | — | Requires Pub/Sub (not mockable) |
+| `gmail +watch` | — | Requires a Pub/Sub-compatible notification path |
 
 ### Messages
 
@@ -96,8 +100,8 @@ hostname and path and transit the fws MITM proxy.
 | gws command | API method | Status |
 |-------------|-----------|--------|
 | `gmail users settings sendAs list` | gmail.users.settings.sendAs.list | ✅ gws-tested |
-| `gmail users settings sendAs get` | gmail.users.settings.sendAs.get | ✅ gws-tested |
-| Other settings endpoints | | — (26 endpoints) |
+| `gmail users settings sendAs get` | gmail.users.settings.sendAs.get | ⚠️ Implemented |
+| Other settings endpoints | | — (43 endpoints) |
 
 ### Drafts
 
@@ -106,9 +110,9 @@ hostname and path and transit the fws MITM proxy.
 | `gmail users drafts list` | gmail.users.drafts.list | ✅ gws-tested |
 | `gmail users drafts get` | gmail.users.drafts.get | ✅ gws-tested |
 | `gmail users drafts create` | gmail.users.drafts.create | ✅ gws-tested |
-| `gmail users drafts update` | gmail.users.drafts.update | ✅ gws-tested |
+| `gmail users drafts update` | gmail.users.drafts.update | ⚠️ Implemented |
 | `gmail users drafts delete` | gmail.users.drafts.delete | ✅ gws-tested |
-| `gmail users drafts send` | gmail.users.drafts.send | ✅ gws-tested |
+| `gmail users drafts send` | gmail.users.drafts.send | ⚠️ Implemented |
 
 ### History
 
@@ -120,7 +124,7 @@ hostname and path and transit the fws MITM proxy.
 
 | gws command | API method | Status |
 |-------------|-----------|--------|
-| `gmail users messages attachments get` | gmail.users.messages.attachments.get | ✅ gws-tested |
+| `gmail users messages attachments get` | gmail.users.messages.attachments.get | ⚠️ Implemented |
 
 ---
 
@@ -134,7 +138,7 @@ hostname and path and transit the fws MITM proxy.
 | `calendar calendarList get` | calendar.calendarList.get | ✅ gws-tested |
 | `calendar calendarList insert` | calendar.calendarList.insert | ✅ gws-tested |
 | `calendar calendarList patch` | calendar.calendarList.patch | ✅ gws-tested |
-| `calendar calendarList update` | calendar.calendarList.update | ✅ gws-tested |
+| `calendar calendarList update` | calendar.calendarList.update | ⚠️ Implemented |
 | `calendar calendarList delete` | calendar.calendarList.delete | ✅ gws-tested |
 | `calendar calendarList watch` | calendar.calendarList.watch | — |
 
@@ -171,7 +175,7 @@ ACL (7 endpoints), channels, colors, freebusy, settings — not implemented.
 
 ---
 
-## Drive (18/57)
+## Drive (18/64)
 
 ### About
 
@@ -204,18 +208,18 @@ ACL (7 endpoints), channels, colors, freebusy, settings — not implemented.
 | `drive permissions list` | drive.permissions.list | ✅ gws-tested |
 | `drive permissions get` | drive.permissions.get | ✅ gws-tested |
 | `drive permissions create` | drive.permissions.create | ✅ gws-tested |
-| `drive permissions update` | drive.permissions.update | ✅ gws-tested |
-| `drive permissions delete` | drive.permissions.delete | ✅ gws-tested |
+| `drive permissions update` | drive.permissions.update | ⚠️ Implemented |
+| `drive permissions delete` | drive.permissions.delete | ⚠️ Implemented |
 
 ### Drives (Shared Drives)
 
 | gws command | API method | Status |
 |-------------|-----------|--------|
 | `drive drives list` | drive.drives.list | ✅ gws-tested |
-| `drive drives create` | drive.drives.create | ✅ gws-tested |
-| `drive drives get` | drive.drives.get | ✅ gws-tested |
-| `drive drives update` | drive.drives.update | ✅ gws-tested |
-| `drive drives delete` | drive.drives.delete | ✅ gws-tested |
+| `drive drives create` | drive.drives.create | ⚠️ Implemented |
+| `drive drives get` | drive.drives.get | ⚠️ Implemented |
+| `drive drives update` | drive.drives.update | ⚠️ Implemented |
+| `drive drives delete` | drive.drives.delete | ⚠️ Implemented |
 | `drive drives hide` | drive.drives.hide | — |
 | `drive drives unhide` | drive.drives.unhide | — |
 
@@ -225,49 +229,57 @@ Comments (5), replies (5), revisions (4), changes (3), channels, apps, teamdrive
 
 ---
 
-## Tasks (14/14) — fully supported
+## Tasks (14/14) — fully implemented
 
-All endpoints gws-tested: tasklists (list/get/insert/patch/update/delete), tasks (list/get/insert/patch/update/delete/move/clear).
+The gws regression suite covers task-list and task
+list/get/insert/patch/delete flows plus task clear. The PUT update methods and
+task move are implemented but do not have committed gws regression tests.
 
-## Sheets (7/17)
+## Sheets (7 functional + 3 stubs / 17)
 
 | gws command | API method | Status |
 |-------------|-----------|--------|
 | `sheets spreadsheets create` | sheets.spreadsheets.create | ✅ gws-tested |
 | `sheets spreadsheets get` | sheets.spreadsheets.get | ✅ gws-tested |
-| `sheets spreadsheets batchUpdate` | sheets.spreadsheets.batchUpdate | ✅ gws-tested |
+| `sheets spreadsheets batchUpdate` | sheets.spreadsheets.batchUpdate | ◑ Returns empty replies without applying requests |
 | `sheets spreadsheets values get` | sheets.spreadsheets.values.get | ✅ gws-tested |
 | `sheets spreadsheets values update` | sheets.spreadsheets.values.update | ✅ gws-tested |
-| `sheets spreadsheets values append` | sheets.spreadsheets.values.append | ✅ gws-tested |
-| `sheets spreadsheets values clear` | sheets.spreadsheets.values.clear | ✅ gws-tested |
-| `sheets spreadsheets values batchGet` | sheets.spreadsheets.values.batchGet | ✅ gws-tested |
-| Other batch/filter operations | | — (9 endpoints) |
+| `sheets spreadsheets values append` | sheets.spreadsheets.values.append | ⚠️ Implemented |
+| `sheets spreadsheets values clear` | sheets.spreadsheets.values.clear | ⚠️ Implemented |
+| `sheets spreadsheets sheets copyTo` | sheets.spreadsheets.sheets.copyTo | ⚠️ Implemented |
+| `sheets spreadsheets values batchUpdate` | sheets.spreadsheets.values.batchUpdate | ◑ Returns an empty response list without updating cells |
+| `sheets spreadsheets values batchClear` | sheets.spreadsheets.values.batchClear | ◑ Returns an empty response list without clearing cells |
+| `sheets spreadsheets values batchGet` | sheets.spreadsheets.values.batchGet | — Route currently returns 404 |
+| Data-filter and developer-metadata methods | | — (6 endpoints) |
 
-## People (16/24)
+## People (19 functional + 3 stubs / 24)
 
 | gws command | API method | Status |
 |-------------|-----------|--------|
 | `people people get` | people.people.get | ✅ gws-tested |
-| `people people createContact` | people.people.createContact | ✅ gws-tested |
-| `people people updateContact` | people.people.updateContact | ✅ gws-tested |
-| `people people deleteContact` | people.people.deleteContact | ✅ gws-tested |
-| `people people searchContacts` | people.people.searchContacts | ✅ gws-tested |
-| `people people getBatchGet` | people.people.getBatchGet | ✅ gws-tested |
-| `people people batchCreateContacts` | people.people.batchCreateContacts | ✅ gws-tested |
-| `people people batchUpdateContacts` | people.people.batchUpdateContacts | ✅ gws-tested |
-| `people people batchDeleteContacts` | people.people.batchDeleteContacts | ✅ gws-tested |
+| `people people createContact` | people.people.createContact | ⚠️ Implemented |
+| `people people updateContact` | people.people.updateContact | ⚠️ Implemented |
+| `people people deleteContact` | people.people.deleteContact | ⚠️ Implemented |
+| `people people searchContacts` | people.people.searchContacts | ⚠️ Implemented |
+| `people people getBatchGet` | people.people.getBatchGet | ⚠️ Implemented |
+| `people people batchCreateContacts` | people.people.batchCreateContacts | ⚠️ Implemented |
+| `people people batchUpdateContacts` | people.people.batchUpdateContacts | ⚠️ Implemented |
+| `people people batchDeleteContacts` | people.people.batchDeleteContacts | ⚠️ Implemented |
 | `people people connections list` | people.people.connections.list | ✅ gws-tested |
-| `people people listDirectoryPeople` | people.people.listDirectoryPeople | ✅ gws-tested |
-| `people people searchDirectoryPeople` | people.people.searchDirectoryPeople | ✅ gws-tested |
+| `people people listDirectoryPeople` | people.people.listDirectoryPeople | ⚠️ Implemented |
+| `people people searchDirectoryPeople` | people.people.searchDirectoryPeople | ⚠️ Implemented |
 | `people contactGroups list` | people.contactGroups.list | ✅ gws-tested |
 | `people contactGroups get` | people.contactGroups.get | ✅ gws-tested |
-| `people contactGroups create` | people.contactGroups.create | ✅ gws-tested |
-| `people contactGroups delete` | people.contactGroups.delete | ✅ gws-tested |
-| `people contactGroups update` | people.contactGroups.update | — |
-| `people contactGroups batchGet` | people.contactGroups.batchGet | — |
-| `people contactGroups members modify` | people.contactGroups.members.modify | ✅ gws-tested |
-| `people otherContacts list` | people.otherContacts.list | ✅ gws-tested |
-| Other (photo, copy) | | — |
+| `people contactGroups create` | people.contactGroups.create | ⚠️ Implemented |
+| `people contactGroups delete` | people.contactGroups.delete | ⚠️ Implemented |
+| `people contactGroups update` | people.contactGroups.update | ⚠️ Implemented |
+| `people contactGroups batchGet` | people.contactGroups.batchGet | ⚠️ Implemented |
+| `people contactGroups members modify` | people.contactGroups.members.modify | ⚠️ Implemented |
+| `people otherContacts list` | people.otherContacts.list | ◑ Always returns an empty collection |
+| `people otherContacts search` | people.otherContacts.search | ◑ Always returns an empty result |
+| `people otherContacts copyOtherContactToMyContactsGroup` | people.otherContacts.copyOtherContactToMyContactsGroup | ◑ Returns a placeholder person without storing it |
+| `people people updateContactPhoto` | people.people.updateContactPhoto | — |
+| `people people deleteContactPhoto` | people.people.deleteContactPhoto | — |
 
 ## Events (0/15) — not yet supported
 

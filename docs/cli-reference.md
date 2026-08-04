@@ -9,6 +9,7 @@ Start the mock server in the background.
 | Flag | Description | Default |
 |------|-------------|---------|
 | `-p, --port <port>` | Port number | `4100` |
+| `--proxy-port <port>` | MITM proxy port | server port + 1 |
 | `-s, --snapshot <name>` | Load a snapshot on start | — |
 | `--foreground` | Run in foreground (for debugging) | — |
 
@@ -17,6 +18,7 @@ If a server is already running, it is automatically stopped and restarted.
 ```bash
 fws server start
 fws server start -p 5000
+fws server start --proxy-port 5100
 fws server start --snapshot my-scenario
 ```
 
@@ -30,8 +32,9 @@ Show whether the server is running and on which port.
 
 ### `fws server env`
 
-Print the env-var exports a child process needs to talk to the running daemon
-(GOOGLE_WORKSPACE_CLI_CONFIG_DIR, HTTPS_PROXY, SSL_CERT_FILE, GH_TOKEN, etc.).
+Print the env-var exports a child process needs to talk to the running daemon:
+`GOOGLE_WORKSPACE_CLI_CONFIG_DIR`, `GOOGLE_WORKSPACE_CLI_TOKEN`, `HTTPS_PROXY`,
+`HTTP_PROXY`, `http_proxy`, `SSL_CERT_FILE`, and `GH_TOKEN`.
 Use with `eval`:
 
 ```bash
@@ -115,6 +118,27 @@ fws drive add --name "notes.txt" --mimeType text/plain --parent folder001 --size
 
 ---
 
+### `fws github user set`
+
+Update the seeded self-user identity used for new GitHub issues, pull requests,
+and comments. The display name and email also flow to Drive owner and Gmail
+sendAs data.
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--login <login>` | one identity field | GitHub login |
+| `--name <name>` | one identity field | Display name |
+| `--email <email>` | one identity field | Email address |
+| `-p, --port <port>` | no | Server port (default `4100`) |
+
+```bash
+fws github user set --login alex.park --name "Alex Park"
+```
+
+At least one of `--login`, `--name`, or `--email` is required.
+
+---
+
 ### `fws search add`
 
 Add a Custom Search fixture (keywords → results). Used by the Search fake
@@ -139,8 +163,8 @@ fws search add \
 Add a Web Fetch fixture — a mock for arbitrary HTTP/HTTPS URLs accessed
 through the MITM proxy. Adding a fixture for a URL or host automatically
 makes that host eligible for proxy interception, so any client routed
-through `HTTPS_PROXY` will get the mock back instead of hitting the real
-internet.
+through `HTTP_PROXY` or `HTTPS_PROXY` will get the mock back instead of
+hitting the real internet.
 
 | Flag | Required | Description | Default |
 |------|----------|-------------|---------|
@@ -174,6 +198,30 @@ fws fetch add \
   --status 201 \
   --body '{"created":true}'
 ```
+
+---
+
+## Custom services
+
+### `fws service register <file>`
+
+Register a custom service from a JSON definition. Relative Python handler
+script paths are resolved relative to the definition file.
+
+### `fws service state <host>`
+
+Print the custom service's current state.
+
+### `fws service requests <host>`
+
+Print the custom service's request log.
+
+### `fws service delete <host>`
+
+Delete the registered custom service.
+
+All four commands accept `-p, --port <port>` with default `4100`. See
+[Custom services](custom-services.md) for the definition format.
 
 ---
 

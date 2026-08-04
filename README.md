@@ -14,7 +14,7 @@ Built with [Claude Code](https://claude.ai/code).
 
 ## How it works
 
-fws runs a local HTTP mock server (port 4100) and a MITM CONNECT proxy (port 4101) that intercepts HTTPS traffic to `*.googleapis.com`, `api.github.com`, and `github.com`, forwarding it to the mock server. The github.com handler speaks the git smart HTTP protocol so `git clone` / `gh repo clone` against fws-seeded repos works end-to-end.
+fws runs a local HTTP mock server (port 4100) and a MITM CONNECT proxy (port 4101) that intercepts configured Google Workspace API hosts, `api.github.com`, and `github.com`, forwarding them to the mock server. The github.com handler speaks the git smart HTTP protocol so `git clone` / `gh repo clone` against fws-seeded repos works end-to-end.
 
 For `gws`: discovery documents are staged with their original Google API URLs, all service traffic is intercepted through the proxy, and `GOOGLE_WORKSPACE_CLI_TOKEN=fake` bypasses auth. Preserving the original host and path lets policy and observability layers distinguish Gmail, Calendar, Drive, Tasks, Sheets, and People operations.
 For `gh`: `HTTPS_PROXY` routes traffic through the MITM proxy, and `GH_TOKEN=fake` bypasses auth.
@@ -105,8 +105,8 @@ fws service  register ./service.json
 `fws fetch add` is the entry point to **Web Fetch** — a generic mock for
 arbitrary HTTP/HTTPS URLs. Adding a fixture for a URL or host
 automatically makes that host eligible for proxy interception, so any
-client routed through `HTTPS_PROXY` will see the mock instead of hitting
-the real internet.
+client routed through `HTTP_PROXY` or `HTTPS_PROXY` will see the mock instead
+of hitting the real internet.
 
 `fws service register` adds a stateful, declarative mock HTTP service. Custom
 services support parameterized routes, request-derived state transitions,

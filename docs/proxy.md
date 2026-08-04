@@ -127,7 +127,7 @@ their service hostname and HTTP path intact.
 
 ```
 intercept(host) =
-       host is a built-in service host
+       host is a reserved service host
     OR host has at least one Web Fetch fixture in the in-memory store
     OR host is registered as a custom service
 ```
@@ -139,21 +139,27 @@ it at runtime, and snapshots can save and restore it.
 Built-in services and Web Fetch fixtures both cause interception, but they
 describe different kinds of mocks:
 
-| | Built-in service host | Web Fetch fixture |
+| | Reserved service host | Web Fetch fixture |
 |---|---|---|
 | Defined by | Static host list in fws source code | Seed data, `fws fetch add`, or a snapshot |
 | Matching | Service host | Exact URL or host, optionally filtered by method |
-| Response | Dedicated Gmail, GitHub, Search, etc. route logic | User-supplied status, headers, and body |
+| Response | Dedicated route when implemented; otherwise 404 | User-supplied status, headers, and body |
 | Changes at runtime | No | Yes |
 
-The built-in service host list lives in `src/proxy/intercepted-hosts.ts` and
-contains hosts where fws ships a dedicated mock service:
+The reserved service host list lives in `src/proxy/intercepted-hosts.ts`.
+It includes both hosts with a dedicated built-in mock and Google Workspace
+hosts reserved for future mocks:
 
 - `gmail.googleapis.com`, `www.googleapis.com`, `tasks.googleapis.com`,
   `sheets.googleapis.com`, `people.googleapis.com`, `chat.googleapis.com`,
   `docs.googleapis.com`, `slides.googleapis.com`, etc.
 - `api.github.com` for REST and GraphQL
 - `github.com` for Git smart HTTP clone and fetch
+
+Gmail, Calendar, Drive, Tasks, Sheets, and People currently have dedicated
+Google Workspace route implementations. Other reserved Google Workspace hosts
+are still intercepted, but they reach the mock server's 404 instead of the real
+service.
 
 The Web Fetch check is dynamic: any time a user runs `fws fetch add` (or
 the proxy starts up with seeded fixtures), every fixture's host becomes
@@ -309,7 +315,7 @@ gws gmail users messages list
    ▼
 MITM proxy CONNECT
    │
-   │ host = gmail.googleapis.com → built-in service host → intercept
+   │ host = gmail.googleapis.com → reserved service host → intercept
    │ Decrypt TLS, parse HTTP request
    ▼
 Forward to mock server with:
@@ -330,7 +336,7 @@ curl https://example.com/
    ▼
 MITM proxy CONNECT
    │
-   │ host = example.com → not a built-in service host
+   │ host = example.com → not a reserved service host
    │ but example.com has a fixture → intercept
    │ TLS termination, parse HTTP request
    ▼
@@ -353,7 +359,7 @@ curl https://random.test/gmail/v1/users/me/profile
    ▼
 MITM proxy CONNECT
    │
-   │ host = random.test → not a built-in service host
+   │ host = random.test → not a reserved service host
    │ but random.test has a fixture → intercept
    ▼
 Forward to mock server with:

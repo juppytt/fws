@@ -1,8 +1,9 @@
 # Custom services
 
 Custom services let an `fws` user define a stateful HTTP mock without adding
-service-specific code to `fws`. Definitions are declarative JSON: they cannot
-execute JavaScript or access the host filesystem.
+service-specific code to `fws`. Declarative routes cannot execute code or
+access the host filesystem. Optional Python handlers are trusted local code
+and have the daemon user's filesystem permissions.
 
 Register a definition against a running server:
 
@@ -85,7 +86,7 @@ Routes apply transitions in order before rendering the response:
 | `delete` | Delete a state path |
 
 Custom-service definitions, state, and request logs are included in normal
-`fws snapshot save` and `fws snapshot load` operations. Built-in service hosts
+`fws snapshot save` and `fws snapshot load` operations. Reserved service hosts
 cannot be overridden.
 
 ## Python handlers
