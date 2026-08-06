@@ -2,6 +2,7 @@
   "name": "@juppytt/fws",
   "version": "0.4.4",
   "description": "Fake Web Services — local mock server for testing CLI tools and agents without real credentials",
+  "license": "MIT",
   "type": "module",
   "repository": {
     "type": "git",
